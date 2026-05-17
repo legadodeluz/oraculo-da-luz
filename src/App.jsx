@@ -258,20 +258,31 @@ export default function App() {
   const audioRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Carrega vozes disponíveis
+  // Carrega vozes disponíveis — com retry para celular
   useEffect(() => {
     function carregarVozes() {
       const vs = window.speechSynthesis?.getVoices() || [];
+      if (vs.length === 0) return; // ainda não carregou
       const vsPT = vs.filter((v) => v.lang.startsWith("pt"));
-      setVozes(vsPT.length > 0 ? vsPT : vs.slice(0, 6));
+      setVozes(vsPT.length > 0 ? vsPT : vs);
     }
+    // Tenta imediatamente
     carregarVozes();
+    // Escuta evento de carregamento (desktop)
     window.speechSynthesis?.addEventListener("voiceschanged", carregarVozes);
-    return () =>
+    // Retry para celular — vozes demoram para carregar
+    const t1 = setTimeout(carregarVozes, 500);
+    const t2 = setTimeout(carregarVozes, 1500);
+    const t3 = setTimeout(carregarVozes, 3000);
+    return () => {
       window.speechSynthesis?.removeEventListener(
         "voiceschanged",
         carregarVozes,
       );
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, []);
 
   useEffect(() => {
@@ -1253,7 +1264,9 @@ export default function App() {
                             textAlign: "center",
                           }}
                         >
-                          Vozes disponíveis no seu aparelho
+                          {vozes.length > 0
+                            ? `${vozes.length} voz(es) disponível(is)`
+                            : "Nenhuma voz encontrada"}
                         </p>
                         {vozes.map((v, i) => (
                           <button
@@ -1290,6 +1303,29 @@ export default function App() {
                           </button>
                         ))}
                       </>
+                    )}
+
+                    {vozAtiva && vozes.length === 0 && (
+                      <button
+                        onClick={() => {
+                          const vs = window.speechSynthesis?.getVoices() || [];
+                          setVozes(vs);
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "8px",
+                          marginBottom: 6,
+                          background: "rgba(251,191,36,0.08)",
+                          border: "1px solid rgba(251,191,36,0.2)",
+                          borderRadius: 10,
+                          color: "#fbbf24",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        🔄 Recarregar vozes
+                      </button>
                     )}
 
                     <button
