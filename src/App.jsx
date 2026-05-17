@@ -231,9 +231,14 @@ function Mensagem({ msg, index }) {
   );
 }
 
+// ── Senha de acesso ───────────────────────────────────────────────
+const SENHA_ACESSO = "legado2025";
+
 // ── App principal ─────────────────────────────────────────────────
 export default function App() {
-  const [tela, setTela] = useState("entrada"); // entrada | oraculo | sobre
+  const [tela, setTela] = useState("senha"); // senha | entrada | oraculo | sobre
+  const [senhaInput, setSenhaInput] = useState("");
+  const [senhaErro, setSenhaErro] = useState(false);
   const [mensagens, setMensagens] = useState([]);
   const [input, setInput] = useState("");
   const [carregando, setCarregando] = useState(false);
@@ -253,6 +258,16 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens, carregando]);
+
+  function verificarSenha() {
+    if (senhaInput.trim().toLowerCase() === SENHA_ACESSO) {
+      setTela("entrada");
+      setSenhaErro(false);
+    } else {
+      setSenhaErro(true);
+      setSenhaInput("");
+    }
+  }
 
   function entrar() {
     setTela("oraculo");
@@ -381,6 +396,176 @@ export default function App() {
         @keyframes rotate-slow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes slideReflexao { 0%{opacity:0;transform:translateY(6px)} 15%,85%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-6px)} }
       `}</style>
+
+      {/* ── TELA DE SENHA ── */}
+      {tela === "senha" && (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "40px 28px",
+            minHeight: "100vh",
+            position: "relative",
+            zIndex: 1,
+            animation: "fadeIn 1s ease",
+          }}
+        >
+          <div
+            style={{
+              animation: "float 4s ease-in-out infinite",
+              marginBottom: 28,
+            }}
+          >
+            <Flame />
+          </div>
+
+          <p
+            style={{
+              fontFamily: "'Cinzel',serif",
+              fontSize: 11,
+              letterSpacing: 6,
+              color: "rgba(251,191,36,0.5)",
+              textTransform: "uppercase",
+              margin: "0 0 10px",
+            }}
+          >
+            Legado de Luz
+          </p>
+          <h1
+            style={{
+              fontFamily: "'Cinzel',serif",
+              fontSize: "clamp(30px,7vw,46px)",
+              fontWeight: 700,
+              color: "#fef3c7",
+              textAlign: "center",
+              lineHeight: 1.2,
+              marginBottom: 8,
+              letterSpacing: 2,
+              textShadow: "0 0 40px rgba(251,191,36,0.3)",
+            }}
+          >
+            O Oráculo
+          </h1>
+
+          <div
+            style={{
+              width: 50,
+              height: 1,
+              background:
+                "linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent)",
+              margin: "14px auto 28px",
+            }}
+          />
+
+          <p
+            style={{
+              color: "rgba(254,243,199,0.5)",
+              fontSize: 14,
+              textAlign: "center",
+              lineHeight: 1.8,
+              maxWidth: 260,
+              marginBottom: 32,
+              fontStyle: "italic",
+            }}
+          >
+            Este espaço é reservado.
+            <br />
+            Digite a palavra de acesso para entrar.
+          </p>
+
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 280,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            <input
+              type="password"
+              value={senhaInput}
+              onChange={(e) => {
+                setSenhaInput(e.target.value);
+                setSenhaErro(false);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && verificarSenha()}
+              placeholder="Palavra de acesso..."
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: `1px solid ${senhaErro ? "rgba(248,113,113,0.5)" : "rgba(251,191,36,0.25)"}`,
+                borderRadius: 14,
+                padding: "14px 18px",
+                color: "#fef3c7",
+                fontSize: 15,
+                fontFamily: "'Lora',Georgia,serif",
+                fontStyle: "italic",
+                outline: "none",
+                textAlign: "center",
+                letterSpacing: 3,
+                transition: "border .2s",
+              }}
+            />
+
+            {senhaErro && (
+              <p
+                style={{
+                  color: "#f87171",
+                  fontSize: 12,
+                  textAlign: "center",
+                  fontStyle: "italic",
+                  margin: 0,
+                  animation: "fadeUp .3s ease",
+                }}
+              >
+                Palavra incorreta. Tente novamente.
+              </p>
+            )}
+
+            <button
+              onClick={verificarSenha}
+              style={{
+                background:
+                  "linear-gradient(135deg,rgba(139,100,20,0.4),rgba(200,168,75,0.2))",
+                border: "1px solid rgba(251,191,36,0.4)",
+                borderRadius: 100,
+                padding: "14px 0",
+                color: "#fef3c7",
+                fontSize: 14,
+                fontFamily: "'Cinzel',serif",
+                letterSpacing: 3,
+                cursor: "pointer",
+                transition: "all .3s",
+              }}
+              onMouseOver={(e) =>
+                (e.currentTarget.style.background =
+                  "linear-gradient(135deg,rgba(139,100,20,0.6),rgba(200,168,75,0.35))")
+              }
+              onMouseOut={(e) =>
+                (e.currentTarget.style.background =
+                  "linear-gradient(135deg,rgba(139,100,20,0.4),rgba(200,168,75,0.2))")
+              }
+            >
+              Entrar
+            </button>
+          </div>
+
+          <p
+            style={{
+              color: "rgba(254,243,199,0.15)",
+              fontSize: 11,
+              marginTop: 40,
+              fontStyle: "italic",
+              textAlign: "center",
+            }}
+          >
+            Acesso restrito · Fase de testes
+          </p>
+        </div>
+      )}
 
       {/* ── TELA DE ENTRADA ── */}
       {tela === "entrada" && (
