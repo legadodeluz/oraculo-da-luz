@@ -381,6 +381,16 @@ export default function App() {
   function entrar() {
     setTela("oraculo");
     setTimeout(() => inputRef.current?.focus(), 400);
+    // Inicia música automaticamente ao entrar na consulta
+    setTimeout(() => {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(MUSICA_URL);
+        audioRef.current.loop = true;
+        audioRef.current.volume = 0.25;
+      }
+      audioRef.current.play().catch(() => {});
+      setMusicaAtiva(true);
+    }, 800);
   }
 
   function detectarCrise(texto) {
@@ -1032,7 +1042,19 @@ export default function App() {
             style={{
               color: "rgba(254,243,199,0.15)",
               fontSize: 10,
-              marginTop: 24,
+              marginTop: 8,
+              fontStyle: "italic",
+              textAlign: "center",
+            }}
+          >
+            🎵 Música: hirohasaimoto from Pixabay
+          </p>
+
+          <p
+            style={{
+              color: "rgba(254,243,199,0.15)",
+              fontSize: 10,
+              marginTop: 8,
               fontStyle: "italic",
               textAlign: "center",
             }}
