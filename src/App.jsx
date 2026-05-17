@@ -231,12 +231,17 @@ function Mensagem({ msg, index }) {
   );
 }
 
+// ── Sino tibetano (URL de áudio gratuito) ─────────────────────────
+const MUSICA_URL =
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+// Troque pela URL de um sino tibetano do YouTube convertido ou arquivo próprio
+
 // ── Senha de acesso ───────────────────────────────────────────────
 const SENHA_ACESSO = "legado2025";
 
 // ── App principal ─────────────────────────────────────────────────
 export default function App() {
-  const [tela, setTela] = useState("senha"); // senha | entrada | oraculo | sobre
+  const [tela, setTela] = useState("senha");
   const [senhaInput, setSenhaInput] = useState("");
   const [senhaErro, setSenhaErro] = useState(false);
   const [mensagens, setMensagens] = useState([]);
@@ -244,8 +249,13 @@ export default function App() {
   const [carregando, setCarregando] = useState(false);
   const [reflexao, setReflexao] = useState(0);
   const [mostrarCVV, setMostrarCVV] = useState(false);
+  const [musicaAtiva, setMusicaAtiva] = useState(false);
+  const [vozAtiva, setVozAtiva] = useState(false);
+  const [escutando, setEscutando] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const audioRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     const t = setInterval(
@@ -258,6 +268,71 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens, carregando]);
+
+  function toggleMusica() {
+    if (!audioRef.current) {
+      audioRef.current = new Audio(MUSICA_URL);
+      audioRef.current.loop = true;
+      audioRef.current.volume = 0.25;
+    }
+    if (musicaAtiva) {
+      audioRef.current.pause();
+      setMusicaAtiva(false);
+    } else {
+      audioRef.current.play().catch(() => {});
+      setMusicaAtiva(true);
+    }
+  }
+
+  function toggleVoz() {
+    setVozAtiva((v) => !v);
+  }
+
+  function falarTexto(texto) {
+    if (!vozAtiva || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(texto);
+    utter.lang = "pt-BR";
+    utter.rate = 0.88;
+    utter.pitch = 0.95;
+    // Tenta usar voz feminina em português
+    const vozes = window.speechSynthesis.getVoices();
+    const vozPT =
+      vozes.find(
+        (v) => v.lang.startsWith("pt") && v.name.toLowerCase().includes("fem"),
+      ) ||
+      vozes.find((v) => v.lang.startsWith("pt")) ||
+      null;
+    if (vozPT) utter.voice = vozPT;
+    window.speechSynthesis.speak(utter);
+  }
+
+  function iniciarVoz() {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Seu navegador não suporta reconhecimento de voz. Tente o Chrome.");
+      return;
+    }
+    if (escutando) {
+      recognitionRef.current?.stop();
+      setEscutando(false);
+      return;
+    }
+    const rec = new SpeechRecognition();
+    rec.lang = "pt-BR";
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.onstart = () => setEscutando(true);
+    rec.onend = () => setEscutando(false);
+    rec.onerror = () => setEscutando(false);
+    rec.onresult = (e) => {
+      const texto = e.results[0][0].transcript;
+      setInput(texto);
+    };
+    recognitionRef.current = rec;
+    rec.start();
+  }
 
   function verificarSenha() {
     if (senhaInput.trim().toLowerCase() === SENHA_ACESSO) {
@@ -320,6 +395,7 @@ export default function App() {
     try {
       const resposta = await consultarOraculo(novas);
       setMensagens([...novas, { role: "assistant", content: resposta }]);
+      falarTexto(resposta);
     } catch {
       setMensagens([
         ...novas,
@@ -970,6 +1046,7 @@ export default function App() {
                 setTela("entrada");
                 setMensagens([]);
                 setMostrarCVV(false);
+                window.speechSynthesis?.cancel();
               }}
               style={{
                 background: "none",
@@ -1015,26 +1092,65 @@ export default function App() {
               </p>
             </div>
 
-            <button
-              onClick={compartilhar}
-              title="Compartilhar"
-              style={{
-                background: "none",
-                border: "none",
-                color: "rgba(254,243,199,0.35)",
-                fontSize: 18,
-                cursor: "pointer",
-                padding: "4px 8px",
-                borderRadius: 8,
-                transition: "color .2s",
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.color = "#fbbf24")}
-              onMouseOut={(e) =>
-                (e.currentTarget.style.color = "rgba(254,243,199,0.35)")
-              }
-            >
-              ⬆
-            </button>
+            {/* Controles */}
+            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+              <button
+                onClick={toggleMusica}
+                title={musicaAtiva ? "Pausar música" : "Tocar sinos tibetanos"}
+                style={{
+                  background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none",
+                  border: musicaAtiva
+                    ? "1px solid rgba(251,191,36,0.3)"
+                    : "1px solid transparent",
+                  borderRadius: 8,
+                  color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  padding: "4px 7px",
+                  transition: "all .2s",
+                }}
+              >
+                {musicaAtiva ? "🔔" : "🔕"}
+              </button>
+              <button
+                onClick={toggleVoz}
+                title={vozAtiva ? "Desativar voz" : "Ativar voz do Oráculo"}
+                style={{
+                  background: vozAtiva ? "rgba(110,231,183,0.12)" : "none",
+                  border: vozAtiva
+                    ? "1px solid rgba(110,231,183,0.3)"
+                    : "1px solid transparent",
+                  borderRadius: 8,
+                  color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  padding: "4px 7px",
+                  transition: "all .2s",
+                }}
+              >
+                {vozAtiva ? "🔊" : "🔈"}
+              </button>
+              <button
+                onClick={compartilhar}
+                title="Compartilhar"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "rgba(254,243,199,0.35)",
+                  fontSize: 18,
+                  cursor: "pointer",
+                  padding: "4px 7px",
+                  borderRadius: 8,
+                  transition: "color .2s",
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.color = "#fbbf24")}
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.color = "rgba(254,243,199,0.35)")
+                }
+              >
+                ⬆
+              </button>
+            </div>
           </div>
 
           {/* Mensagens */}
@@ -1303,6 +1419,34 @@ export default function App() {
                 }}
               />
               <button
+                onClick={iniciarVoz}
+                title={escutando ? "Parar gravação" : "Falar"}
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  background: escutando
+                    ? "rgba(248,113,113,0.3)"
+                    : "rgba(255,255,255,0.06)",
+                  border: escutando
+                    ? "1px solid rgba(248,113,113,0.5)"
+                    : "1px solid transparent",
+                  color: escutando ? "#f87171" : "rgba(254,243,199,0.4)",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  transition: "all .25s",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  animation: escutando
+                    ? "pulse-gold 1s ease-in-out infinite"
+                    : "none",
+                }}
+              >
+                🎤
+              </button>
+              <button
                 onClick={enviar}
                 disabled={!input.trim() || carregando}
                 style={{
@@ -1343,7 +1487,7 @@ export default function App() {
                 fontStyle: "italic",
               }}
             >
-              Enter para enviar · Shift+Enter para nova linha
+              🎤 Toque no microfone para falar · Enter para enviar
             </p>
           </div>
         </div>
