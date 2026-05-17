@@ -231,10 +231,8 @@ function Mensagem({ msg, index }) {
   );
 }
 
-// ── Sino tibetano (URL de áudio gratuito) ─────────────────────────
-const MUSICA_URL =
-  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-// Troque pela URL de um sino tibetano do YouTube convertido ou arquivo próprio
+// ── Música ────────────────────────────────────────────────────────
+const MUSICA_URL = "/hirohasaimoto-gentle-as-forever-484820.mp3";
 
 // ── Senha de acesso ───────────────────────────────────────────────
 const SENHA_ACESSO = "legado2025";
@@ -252,10 +250,29 @@ export default function App() {
   const [musicaAtiva, setMusicaAtiva] = useState(false);
   const [vozAtiva, setVozAtiva] = useState(false);
   const [escutando, setEscutando] = useState(false);
+  const [vozes, setVozes] = useState([]);
+  const [vozSelecionada, setVozSelecionada] = useState(null);
+  const [mostrarVozes, setMostrarVozes] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const audioRef = useRef(null);
   const recognitionRef = useRef(null);
+
+  // Carrega vozes disponíveis
+  useEffect(() => {
+    function carregarVozes() {
+      const vs = window.speechSynthesis?.getVoices() || [];
+      const vsPT = vs.filter((v) => v.lang.startsWith("pt"));
+      setVozes(vsPT.length > 0 ? vsPT : vs.slice(0, 6));
+    }
+    carregarVozes();
+    window.speechSynthesis?.addEventListener("voiceschanged", carregarVozes);
+    return () =>
+      window.speechSynthesis?.removeEventListener(
+        "voiceschanged",
+        carregarVozes,
+      );
+  }, []);
 
   useEffect(() => {
     const t = setInterval(
@@ -268,6 +285,16 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens, carregando]);
+
+  // ── Ducking: abaixa música quando fala, sobe quando termina ──────
+  function abaixarMusica() {
+    if (!audioRef.current || !musicaAtiva) return;
+    audioRef.current.volume = 0.06;
+  }
+  function subirMusica() {
+    if (!audioRef.current || !musicaAtiva) return;
+    audioRef.current.volume = 0.25;
+  }
 
   function toggleMusica() {
     if (!audioRef.current) {
@@ -285,7 +312,9 @@ export default function App() {
   }
 
   function toggleVoz() {
+    if (vozAtiva) window.speechSynthesis?.cancel();
     setVozAtiva((v) => !v);
+    setMostrarVozes(false);
   }
 
   function falarTexto(texto) {
@@ -293,25 +322,31 @@ export default function App() {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(texto);
     utter.lang = "pt-BR";
-    utter.rate = 0.88;
-    utter.pitch = 0.95;
-    // Tenta usar voz feminina em português
-    const vozes = window.speechSynthesis.getVoices();
-    const vozPT =
-      vozes.find(
-        (v) => v.lang.startsWith("pt") && v.name.toLowerCase().includes("fem"),
-      ) ||
-      vozes.find((v) => v.lang.startsWith("pt")) ||
-      null;
-    if (vozPT) utter.voice = vozPT;
+    utter.rate = 0.85;
+    utter.pitch = 0.92;
+    if (vozSelecionada) utter.voice = vozSelecionada;
+    else {
+      const vs = window.speechSynthesis.getVoices();
+      const voz =
+        vs.find(
+          (v) =>
+            v.lang.startsWith("pt") && v.name.toLowerCase().includes("fem"),
+        ) ||
+        vs.find((v) => v.lang.startsWith("pt")) ||
+        null;
+      if (voz) utter.voice = voz;
+    }
+    // Ducking — abaixa música ao falar, sobe ao terminar
+    utter.onstart = () => abaixarMusica();
+    utter.onend = () => subirMusica();
+    utter.onerror = () => subirMusica();
     window.speechSynthesis.speak(utter);
   }
 
   function iniciarVoz() {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Seu navegador não suporta reconhecimento de voz. Tente o Chrome.");
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      alert("Seu navegador não suporta voz. Use o Chrome.");
       return;
     }
     if (escutando) {
@@ -319,7 +354,7 @@ export default function App() {
       setEscutando(false);
       return;
     }
-    const rec = new SpeechRecognition();
+    const rec = new SR();
     rec.lang = "pt-BR";
     rec.continuous = false;
     rec.interimResults = false;
@@ -327,8 +362,7 @@ export default function App() {
     rec.onend = () => setEscutando(false);
     rec.onerror = () => setEscutando(false);
     rec.onresult = (e) => {
-      const texto = e.results[0][0].transcript;
-      setInput(texto);
+      setInput(e.results[0][0].transcript);
     };
     recognitionRef.current = rec;
     rec.start();
@@ -349,9 +383,8 @@ export default function App() {
     setTimeout(() => inputRef.current?.focus(), 400);
   }
 
-  // Detecta sinais de crise na mensagem do usuário
   function detectarCrise(texto) {
-    const palavrasCrise = [
+    const palavras = [
       "suicídio",
       "suicidio",
       "me matar",
@@ -365,16 +398,17 @@ export default function App() {
       "desesperado",
       "desesperada",
     ];
-    return palavrasCrise.some((p) => texto.toLowerCase().includes(p));
+    return palavras.some((p) => texto.toLowerCase().includes(p));
   }
 
-  // Compartilhar o app
   function compartilhar() {
-    const texto =
-      "✨ Encontrei um espaço de acolhimento e reflexão. Vale conhecer: ";
     const url = window.location.href;
     if (navigator.share) {
-      navigator.share({ title: "O Oráculo · Legado de Luz", text: texto, url });
+      navigator.share({
+        title: "O Oráculo · Legado de Luz",
+        text: "✨ Um espaço de acolhimento e reflexão: ",
+        url,
+      });
     } else {
       navigator.clipboard.writeText(url);
       alert("Link copiado! Cole no WhatsApp para compartilhar. 🕯️");
@@ -385,10 +419,7 @@ export default function App() {
     if (!input.trim() || carregando) return;
     const texto = input.trim();
     setInput("");
-
-    // Detecta crise antes de enviar
     if (detectarCrise(texto)) setMostrarCVV(true);
-
     const novas = [...mensagens, { role: "user", content: texto }];
     setMensagens(novas);
     setCarregando(true);
@@ -1093,10 +1124,17 @@ export default function App() {
             </div>
 
             {/* Controles */}
-            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 5,
+                alignItems: "center",
+                position: "relative",
+              }}
+            >
               <button
                 onClick={toggleMusica}
-                title={musicaAtiva ? "Pausar música" : "Tocar sinos tibetanos"}
+                title={musicaAtiva ? "Pausar música" : "Tocar música"}
                 style={{
                   background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none",
                   border: musicaAtiva
@@ -1112,24 +1150,147 @@ export default function App() {
               >
                 {musicaAtiva ? "🔔" : "🔕"}
               </button>
-              <button
-                onClick={toggleVoz}
-                title={vozAtiva ? "Desativar voz" : "Ativar voz do Oráculo"}
-                style={{
-                  background: vozAtiva ? "rgba(110,231,183,0.12)" : "none",
-                  border: vozAtiva
-                    ? "1px solid rgba(110,231,183,0.3)"
-                    : "1px solid transparent",
-                  borderRadius: 8,
-                  color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)",
-                  fontSize: 16,
-                  cursor: "pointer",
-                  padding: "4px 7px",
-                  transition: "all .2s",
-                }}
-              >
-                {vozAtiva ? "🔊" : "🔈"}
-              </button>
+
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setMostrarVozes((v) => !v)}
+                  title={vozAtiva ? "Voz ativa" : "Ativar voz"}
+                  style={{
+                    background: vozAtiva ? "rgba(110,231,183,0.12)" : "none",
+                    border: vozAtiva
+                      ? "1px solid rgba(110,231,183,0.3)"
+                      : "1px solid transparent",
+                    borderRadius: 8,
+                    color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)",
+                    fontSize: 16,
+                    cursor: "pointer",
+                    padding: "4px 7px",
+                    transition: "all .2s",
+                  }}
+                >
+                  {vozAtiva ? "🔊" : "🔈"}
+                </button>
+
+                {/* Painel seletor de voz */}
+                {mostrarVozes && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 44,
+                      right: 0,
+                      background: "rgba(10,5,25,0.97)",
+                      border: "1px solid rgba(251,191,36,0.2)",
+                      borderRadius: 14,
+                      padding: 12,
+                      minWidth: 220,
+                      zIndex: 100,
+                      animation: "fadeUp .2s ease",
+                    }}
+                  >
+                    <p
+                      style={{
+                        color: "rgba(251,191,36,0.7)",
+                        fontSize: 11,
+                        fontFamily: "'Cinzel',serif",
+                        letterSpacing: 1,
+                        margin: "0 0 10px",
+                        textAlign: "center",
+                      }}
+                    >
+                      Escolher voz
+                    </p>
+
+                    <button
+                      onClick={toggleVoz}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        marginBottom: 8,
+                        background: vozAtiva
+                          ? "rgba(248,113,113,0.1)"
+                          : "rgba(110,231,183,0.1)",
+                        border: `1px solid ${vozAtiva ? "rgba(248,113,113,0.3)" : "rgba(110,231,183,0.3)"}`,
+                        borderRadius: 10,
+                        color: vozAtiva ? "#f87171" : "#6EE7B7",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {vozAtiva ? "🔇 Desativar voz" : "🔊 Ativar voz"}
+                    </button>
+
+                    {vozes.length > 0 && vozAtiva && (
+                      <>
+                        <p
+                          style={{
+                            color: "rgba(254,243,199,0.3)",
+                            fontSize: 10,
+                            margin: "4px 0 6px",
+                            fontStyle: "italic",
+                            textAlign: "center",
+                          }}
+                        >
+                          Vozes disponíveis no seu aparelho
+                        </p>
+                        {vozes.map((v, i) => (
+                          <button
+                            key={i}
+                            onClick={() => {
+                              setVozSelecionada(v);
+                              setMostrarVozes(false);
+                            }}
+                            style={{
+                              width: "100%",
+                              padding: "7px 10px",
+                              marginBottom: 5,
+                              background:
+                                vozSelecionada?.name === v.name
+                                  ? "rgba(251,191,36,0.15)"
+                                  : "rgba(255,255,255,0.04)",
+                              border: `1px solid ${vozSelecionada?.name === v.name ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.07)"}`,
+                              borderRadius: 9,
+                              color:
+                                vozSelecionada?.name === v.name
+                                  ? "#fbbf24"
+                                  : "#94a3b8",
+                              fontSize: 11,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              textAlign: "left",
+                              transition: "all .15s",
+                            }}
+                          >
+                            {vozSelecionada?.name === v.name ? "✦ " : ""}
+                            {v.name.length > 28
+                              ? v.name.slice(0, 28) + "…"
+                              : v.name}
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    <button
+                      onClick={() => setMostrarVozes(false)}
+                      style={{
+                        width: "100%",
+                        padding: "6px",
+                        marginTop: 4,
+                        background: "none",
+                        border: "none",
+                        color: "rgba(254,243,199,0.2)",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={compartilhar}
                 title="Compartilhar"
