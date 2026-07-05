@@ -351,7 +351,7 @@ function ModalUpgrade({ onFechar, userId }) {
 const MUSICA_URL = "/hirohasaimoto-gentle-as-forever-484820.mp3";
 
 // ── Senha de acesso ───────────────────────────────────────────────
-const SENHA_ACESSO = "legado2025";
+const SENHA_ACESSO = "meulegado2026";
 
 // ── App principal ─────────────────────────────────────────────────
 export default function App() {
