@@ -94,7 +94,7 @@ function consultasRestantes() {
 // Crie em: dashboard.stripe.com > Payment Links > + Novo link
 // Preço: R$ 9,90 recorrente mensal
 // Após pagamento, redirecione para: SEU_SITE/?premium=true
-const STRIPE_PAYMENT_LINK = import.meta.env.VITE_STRIPE_LINK || "https://buy.stripe.com/SEU_LINK_AQUI";
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_aFa28t3GWb6e1Kc4BQ8b500";
 
 // ── Chamada à API do Oráculo ───────────────────────────────────────
 async function consultarOraculo(mensagens) {
@@ -351,7 +351,7 @@ function ModalUpgrade({ onFechar, userId }) {
 const MUSICA_URL = "/hirohasaimoto-gentle-as-forever-484820.mp3";
 
 // ── Senha de acesso ───────────────────────────────────────────────
-const SENHA_ACESSO = "meulegado2026";
+const SENHA_ACESSO = "legado2025";
 
 // ── App principal ─────────────────────────────────────────────────
 export default function App() {
