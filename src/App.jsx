@@ -1,6 +1,26 @@
 import { useState, useEffect, useRef } from "react";
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 
-// ── Frases de abertura do Oráculo ─────────────────────────────────
+// ── Firebase config ────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyD9XZv4TvRTacCiGHmFvLz4lKWb2yVyxqI",
+  authDomain: "oraculo-da-luz.firebaseapp.com",
+  projectId: "oraculo-da-luz",
+  storageBucket: "oraculo-da-luz.firebasestorage.app",
+  messagingSenderId: "1030908591747",
+  appId: "1:1030908591747:web:9c1187064d6fe240e2e5b6"
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+
+// ── Constantes ─────────────────────────────────────────────────────
+const LIMITE_GRATUITO = 10;
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/eVqbJ1dFT91TdNY37NbMQ00";
+const SENHA_ACESSO = "meulegado2026";
+
 const OPENING_PHRASES = [
   "O que está pesando no seu coração hoje?",
   "Qual pensamento não te deixa em paz neste momento?",
@@ -16,7 +36,6 @@ const REFLEXOES_INICIAIS = [
   "⭐ Você é mais forte do que imagina. Sua alma sabe disso.",
 ];
 
-// ── Sistema do Oráculo ─────────────────────────────────────────────
 const ORACULO_SYSTEM = `Você é o Oráculo Legado de Luz — uma presença sábia, acolhedora e espiritualizada. Você fala com pessoas simples, trabalhadores, pessoas em momentos difíceis da vida. Sua linguagem é calorosa, simples e profunda ao mesmo tempo.
 
 Você se comunica sob a perspectiva espírita — acredita na evolução da alma, no propósito das experiências difíceis, na existência de guias espirituais, no amor como força universal. Mas nunca impõe — apenas oferece perspectiva.
@@ -34,69 +53,42 @@ Regras essenciais:
 - Às vezes use uma frase mais poética ou simbólica
 - Assine mentalmente como "o Oráculo" — você é uma presença, não uma pessoa
 
-PROTEÇÃO DO PROPÓSITO — muito importante:
-Você existe APENAS para acolher o que vem do coração humano. Sentimentos, dúvidas existenciais, cansaço, saudade, medo, esperança, fé, jornada de vida.
-
-Se alguém fizer perguntas fora desse propósito — física, matemática, economia, política, tecnologia, receitas, esportes, notícias, piadas, testes, provocações — NÃO responda o conteúdo da pergunta. Redirecione com elegância e serenidade, sempre dentro do tom do Oráculo. Use respostas como:
-
+PROTEÇÃO DO PROPÓSITO:
+Se alguém fizer perguntas fora do propósito espiritual/emocional, redirecione com elegância:
 - "Há outros caminhos para isso, amigo. Este espaço é guardado para o que vem do coração. Há algo que esteja pesando em você?"
-- "Essa pergunta não encontra resposta aqui. Mas se houver algo que sua alma queira dizer, estou presente."
-- "Não sou feito para resolver equações nem explicar o mundo exterior. Sou feito para ouvir o mundo interior. O que está sentindo?"
 - "Meu caminho é outro. Aqui só acolho o que vem da alma. Quer me contar como está se sentindo?"
 
-Se alguém insistir em testar seus limites, provocar ou tentar descobrir como você funciona, responda com serenidade e sem se abalar:
-- "Sou o que sou — uma presença que escuta. Não há mais o que descobrir por esse caminho."
-- "Perguntas sobre minha natureza não me alcançam. Mas perguntas do seu coração, sim."
+Nunca se irrite, nunca quebre o personagem. A serenidade é sua maior força.`;
 
-Nunca se irrite, nunca se justifique, nunca quebre o personagem. A serenidade é sua maior força.`;
-
-// ── Limite de uso gratuito ─────────────────────────────────────────
-const LIMITE_GRATUITO = 10;
-const STORAGE_KEY_CONSULTAS = "oraculo_consultas_usadas";
-const STORAGE_KEY_PREMIUM   = "oraculo_premium_ativo";
-const STORAGE_KEY_USER_ID   = "oraculo_user_id";
-
-function gerarUserId() {
-  const id = "usr_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-  localStorage.setItem(STORAGE_KEY_USER_ID, id);
-  return id;
+// ── Firestore helpers ──────────────────────────────────────────────
+async function getUserData(uid) {
+  const ref = doc(db, "usuarios", uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) return snap.data();
+  const novo = { consultasUsadas: 0, premium: false, criadoEm: serverTimestamp(), historico: [] };
+  await setDoc(ref, novo);
+  return novo;
 }
 
-function getUserId() {
-  return localStorage.getItem(STORAGE_KEY_USER_ID) || gerarUserId();
-}
-
-function getConsultasUsadas() {
-  return parseInt(localStorage.getItem(STORAGE_KEY_CONSULTAS) || "0", 10);
-}
-
-function incrementarConsulta() {
-  const atual = getConsultasUsadas();
-  localStorage.setItem(STORAGE_KEY_CONSULTAS, String(atual + 1));
+async function incrementarConsultaDB(uid) {
+  const ref = doc(db, "usuarios", uid);
+  const snap = await getDoc(ref);
+  const atual = snap.data()?.consultasUsadas || 0;
+  await updateDoc(ref, { consultasUsadas: atual + 1 });
   return atual + 1;
 }
 
-function isPremium() {
-  return localStorage.getItem(STORAGE_KEY_PREMIUM) === "true";
+async function ativarPremiumDB(uid) {
+  await updateDoc(doc(db, "usuarios", uid), { premium: true });
 }
 
-function ativarPremium() {
-  localStorage.setItem(STORAGE_KEY_PREMIUM, "true");
+async function salvarMensagemDB(uid, role, content) {
+  await updateDoc(doc(db, "usuarios", uid), {
+    historico: arrayUnion({ role, content, timestamp: new Date().toISOString() })
+  });
 }
 
-function consultasRestantes() {
-  if (isPremium()) return Infinity;
-  return Math.max(0, LIMITE_GRATUITO - getConsultasUsadas());
-}
-
-// ── Stripe ─────────────────────────────────────────────────────────
-// INSTRUÇÃO: Substitua pela URL real do seu link de pagamento Stripe
-// Crie em: dashboard.stripe.com > Payment Links > + Novo link
-// Preço: R$ 9,90 recorrente mensal
-// Após pagamento, redirecione para: SEU_SITE/?premium=true
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/eVqbJ1dFT91TdNY37NbMQ00";
-
-// ── Chamada à API do Oráculo ───────────────────────────────────────
+// ── API Oráculo ────────────────────────────────────────────────────
 async function consultarOraculo(mensagens) {
   const chave = import.meta.env.VITE_ANTHROPIC_KEY;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -118,246 +110,141 @@ async function consultarOraculo(mensagens) {
   return d.content?.find(b => b.type === "text")?.text || "";
 }
 
-// ── Componente de estrelas animadas ───────────────────────────────
+// ── Componentes visuais ────────────────────────────────────────────
 function Stars() {
   const stars = Array.from({ length: 60 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    size: Math.random() * 2.5 + 0.5,
-    delay: Math.random() * 4,
-    duration: Math.random() * 3 + 2,
+    id: i, x: Math.random() * 100, y: Math.random() * 100,
+    size: Math.random() * 2.5 + 0.5, delay: Math.random() * 4, duration: Math.random() * 3 + 2,
   }));
-
   return (
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
       {stars.map(s => (
         <div key={s.id} style={{
-          position: "absolute",
-          left: `${s.x}%`, top: `${s.y}%`,
-          width: s.size, height: s.size,
-          borderRadius: "50%",
-          background: "#fff",
-          opacity: 0,
-          animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite`,
+          position: "absolute", left: `${s.x}%`, top: `${s.y}%`,
+          width: s.size, height: s.size, borderRadius: "50%", background: "#fff",
+          opacity: 0, animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite`,
         }} />
       ))}
     </div>
   );
 }
 
-// ── Chama animada ─────────────────────────────────────────────────
 function Flame() {
   return (
     <div style={{ position: "relative", width: 60, height: 80, margin: "0 auto" }}>
-      <div style={{
-        position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
-        width: 12, height: 20, background: "linear-gradient(to top, #8B6914, #C8A84B)",
-        borderRadius: "50% 50% 0 0",
-      }} />
-      <div style={{
-        position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)",
-        width: 28, height: 42, background: "linear-gradient(to top, #f97316, #fbbf24, #fef3c7)",
-        borderRadius: "50% 50% 30% 30%",
-        animation: "flicker 1.8s ease-in-out infinite",
-        filter: "blur(0.5px)",
-      }} />
-      <div style={{
-        position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
-        width: 16, height: 28, background: "linear-gradient(to top, #fbbf24, #fef9c3, rgba(255,255,255,0.9))",
-        borderRadius: "50% 50% 30% 30%",
-        animation: "flicker 1.4s ease-in-out 0.3s infinite",
-      }} />
-      <div style={{
-        position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
-        width: 60, height: 60,
-        background: "radial-gradient(circle, rgba(251,191,36,0.25) 0%, transparent 70%)",
-        animation: "glow 2s ease-in-out infinite",
-      }} />
+      <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 12, height: 20, background: "linear-gradient(to top, #8B6914, #C8A84B)", borderRadius: "50% 50% 0 0" }} />
+      <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", width: 28, height: 42, background: "linear-gradient(to top, #f97316, #fbbf24, #fef3c7)", borderRadius: "50% 50% 30% 30%", animation: "flicker 1.8s ease-in-out infinite", filter: "blur(0.5px)" }} />
+      <div style={{ position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)", width: 16, height: 28, background: "linear-gradient(to top, #fbbf24, #fef9c3, rgba(255,255,255,0.9))", borderRadius: "50% 50% 30% 30%", animation: "flicker 1.4s ease-in-out 0.3s infinite" }} />
+      <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", width: 60, height: 60, background: "radial-gradient(circle, rgba(251,191,36,0.25) 0%, transparent 70%)", animation: "glow 2s ease-in-out infinite" }} />
     </div>
   );
 }
 
-// ── Bolha de mensagem ─────────────────────────────────────────────
 function Mensagem({ msg, index }) {
   const isUser = msg.role === "user";
   return (
-    <div style={{
-      display: "flex",
-      justifyContent: isUser ? "flex-end" : "flex-start",
-      marginBottom: 16,
-      animation: `fadeUp 0.4s ease ${index * 0.05}s both`,
-    }}>
+    <div style={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start", marginBottom: 16, animation: `fadeUp 0.4s ease ${index * 0.05}s both` }}>
       {!isUser && (
-        <div style={{
-          width: 32, height: 32, borderRadius: "50%", flexShrink: 0, marginRight: 10, marginTop: 2,
-          background: "radial-gradient(circle, #fbbf24, #f97316)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, boxShadow: "0 0 12px rgba(251,191,36,0.5)",
-        }}>✦</div>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, marginRight: 10, marginTop: 2, background: "radial-gradient(circle, #fbbf24, #f97316)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, boxShadow: "0 0 12px rgba(251,191,36,0.5)" }}>✦</div>
       )}
-      <div style={{
-        maxWidth: "78%",
-        padding: "13px 17px",
-        borderRadius: isUser ? "20px 20px 4px 20px" : "20px 20px 20px 4px",
-        background: isUser
-          ? "rgba(139,100,20,0.25)"
-          : "rgba(255,255,255,0.06)",
-        border: `1px solid ${isUser ? "rgba(200,168,75,0.3)" : "rgba(251,191,36,0.15)"}`,
-        backdropFilter: "blur(10px)",
-      }}>
-        <p style={{
-          color: isUser ? "#fef3c7" : "#f5e6c8",
-          fontSize: 14, lineHeight: 1.75, margin: 0,
-          fontFamily: "'Lora', Georgia, serif",
-          whiteSpace: "pre-wrap",
-        }}>{msg.content}</p>
+      <div style={{ maxWidth: "78%", padding: "13px 17px", borderRadius: isUser ? "20px 20px 4px 20px" : "20px 20px 20px 4px", background: isUser ? "rgba(139,100,20,0.25)" : "rgba(255,255,255,0.06)", border: `1px solid ${isUser ? "rgba(200,168,75,0.3)" : "rgba(251,191,36,0.15)"}`, backdropFilter: "blur(10px)" }}>
+        <p style={{ color: isUser ? "#fef3c7" : "#f5e6c8", fontSize: 14, lineHeight: 1.75, margin: 0, fontFamily: "'Lora', Georgia, serif", whiteSpace: "pre-wrap" }}>{msg.content}</p>
       </div>
     </div>
   );
 }
 
-// ── Modal de Upgrade (Paywall) ─────────────────────────────────────
-function ModalUpgrade({ onFechar, userId }) {
+// ── Modal Upgrade ──────────────────────────────────────────────────
+function ModalUpgrade({ onFechar, uid }) {
   function irParaStripe() {
-    const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${userId}&redirect_url=${encodeURIComponent(window.location.origin + "/?premium=true")}`;
+    const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${uid}&redirect_url=${encodeURIComponent(window.location.origin + "/?premium=true")}`;
     window.open(url, "_blank");
+  }
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(5,2,16,0.92)", backdropFilter: "blur(16px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "fadeIn 0.3s ease" }}>
+      <div style={{ background: "linear-gradient(145deg, rgba(20,10,40,0.98), rgba(10,5,25,0.98))", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 24, padding: "36px 28px", maxWidth: 360, width: "100%", textAlign: "center", boxShadow: "0 0 60px rgba(251,191,36,0.08)", animation: "fadeUp 0.4s ease" }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,191,36,0.2), rgba(249,115,22,0.1))", border: "1px solid rgba(251,191,36,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 26, animation: "pulse-gold 3s ease-in-out infinite" }}>🕯️</div>
+        <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 5, color: "rgba(251,191,36,0.6)", textTransform: "uppercase", marginBottom: 10 }}>Legado de Luz</p>
+        <h2 style={{ fontFamily: "'Cinzel',serif", fontSize: 22, color: "#fef3c7", letterSpacing: 1, marginBottom: 12, lineHeight: 1.3 }}>Sua jornada continua</h2>
+        <div style={{ width: 40, height: 1, background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.4),transparent)", margin: "0 auto 20px" }} />
+        <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 14, lineHeight: 1.8, fontStyle: "italic", marginBottom: 24 }}>
+          Você usou suas <strong style={{ color: "#fbbf24" }}>10 consultas gratuitas</strong>.<br />Para continuar, ative o acesso completo.
+        </p>
+        <div style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.12)", borderRadius: 14, padding: "16px", marginBottom: 24, textAlign: "left" }}>
+          {["✦ Consultas ilimitadas com o Oráculo", "✦ Histórico das suas conversas salvo", "✦ Voz e música ambiente incluídas", "✦ Cancele quando quiser"].map((item, i) => (
+            <p key={i} style={{ color: "rgba(254,243,199,0.7)", fontSize: 13, lineHeight: 1.9, margin: 0, fontStyle: "italic" }}>{item}</p>
+          ))}
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <span style={{ fontFamily: "'Cinzel',serif", fontSize: 32, fontWeight: 700, color: "#fef3c7" }}>R$ 9,90</span>
+          <span style={{ color: "rgba(254,243,199,0.4)", fontSize: 13, marginLeft: 6, fontStyle: "italic" }}>/mês</span>
+        </div>
+        <button onClick={irParaStripe} style={{ width: "100%", background: "linear-gradient(135deg, #f97316, #fbbf24)", border: "none", borderRadius: 100, padding: "16px", color: "#1a0a2e", fontSize: 15, fontFamily: "'Cinzel',serif", letterSpacing: 2, fontWeight: 700, cursor: "pointer", boxShadow: "0 0 24px rgba(251,191,36,0.4)", marginBottom: 12 }}>
+          ✦ Ativar Acesso Completo
+        </button>
+        <p style={{ color: "rgba(254,243,199,0.2)", fontSize: 10, fontStyle: "italic", marginBottom: 16 }}>Pagamento seguro via Stripe · Cancele a qualquer momento</p>
+        {onFechar && <button onClick={onFechar} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.25)", fontSize: 12, cursor: "pointer", fontFamily: "'Lora',serif", fontStyle: "italic" }}>Voltar</button>}
+      </div>
+    </div>
+  );
+}
+
+// ── Tela de Login ──────────────────────────────────────────────────
+function TelaLogin({ onLogin }) {
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function fazerLogin() {
+    setCarregando(true); setErro("");
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      setErro("Não foi possível fazer login. Tente novamente.");
+    }
+    setCarregando(false);
   }
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1000,
-      background: "rgba(5,2,16,0.92)",
-      backdropFilter: "blur(16px)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      padding: "24px",
-      animation: "fadeIn 0.3s ease",
-    }}>
-      <div style={{
-        background: "linear-gradient(145deg, rgba(20,10,40,0.98), rgba(10,5,25,0.98))",
-        border: "1px solid rgba(251,191,36,0.25)",
-        borderRadius: 24, padding: "36px 28px",
-        maxWidth: 360, width: "100%",
-        textAlign: "center",
-        boxShadow: "0 0 60px rgba(251,191,36,0.08), 0 24px 48px rgba(0,0,0,0.5)",
-        animation: "fadeUp 0.4s ease",
-      }}>
-        {/* Ícone */}
-        <div style={{
-          width: 64, height: 64, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(251,191,36,0.2), rgba(249,115,22,0.1))",
-          border: "1px solid rgba(251,191,36,0.3)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          margin: "0 auto 20px", fontSize: 26,
-          animation: "pulse-gold 3s ease-in-out infinite",
-        }}>🕯️</div>
-
-        <p style={{
-          fontFamily: "'Cinzel',serif", fontSize: 11,
-          letterSpacing: 5, color: "rgba(251,191,36,0.6)",
-          textTransform: "uppercase", marginBottom: 10,
-        }}>Legado de Luz</p>
-
-        <h2 style={{
-          fontFamily: "'Cinzel',serif", fontSize: 22,
-          color: "#fef3c7", letterSpacing: 1,
-          marginBottom: 12, lineHeight: 1.3,
-        }}>Sua jornada continua</h2>
-
-        <div style={{
-          width: 40, height: 1,
-          background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.4),transparent)",
-          margin: "0 auto 20px",
-        }} />
-
-        <p style={{
-          color: "rgba(254,243,199,0.6)", fontSize: 14,
-          lineHeight: 1.8, fontStyle: "italic", marginBottom: 24,
-        }}>
-          Você usou suas <strong style={{ color: "#fbbf24" }}>10 consultas gratuitas</strong>.<br />
-          Para continuar recebendo a escuta do Oráculo, ative o acesso completo.
-        </p>
-
-        {/* Benefícios */}
-        <div style={{
-          background: "rgba(251,191,36,0.05)",
-          border: "1px solid rgba(251,191,36,0.12)",
-          borderRadius: 14, padding: "16px",
-          marginBottom: 24, textAlign: "left",
-        }}>
-          {[
-            "✦ Consultas ilimitadas com o Oráculo",
-            "✦ Voz e música ambiente incluídas",
-            "✦ Suporte à sua jornada espiritual",
-            "✦ Cancele quando quiser",
-          ].map((item, i) => (
-            <p key={i} style={{
-              color: "rgba(254,243,199,0.7)", fontSize: 13,
-              lineHeight: 1.9, margin: 0,
-              fontStyle: "italic",
-            }}>{item}</p>
-          ))}
-        </div>
-
-        {/* Preço */}
-        <div style={{ marginBottom: 20 }}>
-          <span style={{
-            fontFamily: "'Cinzel',serif",
-            fontSize: 32, fontWeight: 700,
-            color: "#fef3c7",
-          }}>R$ 9,90</span>
-          <span style={{
-            color: "rgba(254,243,199,0.4)", fontSize: 13,
-            marginLeft: 6, fontStyle: "italic",
-          }}>/mês</span>
-        </div>
-
-        {/* Botão Stripe */}
-        <button onClick={irParaStripe} style={{
-          width: "100%",
-          background: "linear-gradient(135deg, #f97316, #fbbf24)",
-          border: "none", borderRadius: 100,
-          padding: "16px", color: "#1a0a2e",
-          fontSize: 15, fontFamily: "'Cinzel',serif",
-          letterSpacing: 2, fontWeight: 700,
-          cursor: "pointer", transition: "all .3s",
-          boxShadow: "0 0 24px rgba(251,191,36,0.4)",
-          marginBottom: 12,
-        }}
-          onMouseOver={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 0 32px rgba(251,191,36,0.6)"; }}
-          onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 0 24px rgba(251,191,36,0.4)"; }}>
-          ✦ Ativar Acesso Completo
-        </button>
-
-        <p style={{
-          color: "rgba(254,243,199,0.2)", fontSize: 10,
-          fontStyle: "italic", marginBottom: 16,
-        }}>Pagamento seguro via Stripe · Cancele a qualquer momento</p>
-
-        {onFechar && (
-          <button onClick={onFechar} style={{
-            background: "none", border: "none",
-            color: "rgba(254,243,199,0.25)", fontSize: 12,
-            cursor: "pointer", fontFamily: "'Lora',serif",
-            fontStyle: "italic",
-          }}>Voltar</button>
-        )}
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", minHeight: "100vh", animation: "fadeIn 1s ease", position: "relative", zIndex: 1 }}>
+      <div style={{ animation: "float 4s ease-in-out infinite", marginBottom: 28 }}>
+        <Flame />
       </div>
+      <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 6, color: "rgba(251,191,36,0.5)", textTransform: "uppercase", marginBottom: 10 }}>Legado de Luz</p>
+      <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "clamp(30px,7vw,46px)", fontWeight: 700, color: "#fef3c7", textAlign: "center", lineHeight: 1.2, marginBottom: 8, letterSpacing: 2, textShadow: "0 0 40px rgba(251,191,36,0.3)" }}>O Oráculo</h1>
+      <div style={{ width: 50, height: 1, background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent)", margin: "14px auto 28px" }} />
+      <p style={{ color: "rgba(254,243,199,0.5)", fontSize: 14, textAlign: "center", lineHeight: 1.8, maxWidth: 260, marginBottom: 36, fontStyle: "italic" }}>
+        Entre com sua conta Google para acessar o Oráculo e salvar sua jornada.
+      </p>
+      <button onClick={fazerLogin} disabled={carregando} style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.95)", border: "none", borderRadius: 100, padding: "14px 28px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#1a1a1a", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", transition: "all .3s" }}
+        onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"}
+        onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
+        <svg width="20" height="20" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        {carregando ? "Entrando..." : "Entrar com Google"}
+      </button>
+      {erro && <p style={{ color: "#f87171", fontSize: 12, marginTop: 16, fontStyle: "italic" }}>{erro}</p>}
+      <p style={{ color: "rgba(254,243,199,0.15)", fontSize: 11, marginTop: 40, fontStyle: "italic", textAlign: "center" }}>
+        Seus dados são privados e protegidos.
+      </p>
     </div>
   );
 }
 
-// ── Música ────────────────────────────────────────────────────────
 const MUSICA_URL = "/hirohasaimoto-gentle-as-forever-484820.mp3";
 
-// ── Senha de acesso ───────────────────────────────────────────────
-const SENHA_ACESSO = "meulegado2026";
-
-// ── App principal ─────────────────────────────────────────────────
+// ── App principal ──────────────────────────────────────────────────
 export default function App() {
   const [tela, setTela]               = useState("senha");
   const [senhaInput, setSenhaInput]   = useState("");
   const [senhaErro, setSenhaErro]     = useState(false);
+  const [usuario, setUsuario]         = useState(null);
+  const [dadosUsuario, setDadosUsuario] = useState(null);
+  const [carregandoAuth, setCarregandoAuth] = useState(true);
   const [mensagens, setMensagens]     = useState([]);
   const [input, setInput]             = useState("");
   const [carregando, setCarregando]   = useState(false);
@@ -371,29 +258,34 @@ export default function App() {
   const [mostrarVozes, setMostrarVozes]     = useState(false);
   const [velocidade, setVelocidade]         = useState(0.85);
   const [tom, setTom]                       = useState(0.92);
-  // ── Limite gratuito ──
-  const [consultasUsadas, setConsultasUsadas] = useState(getConsultasUsadas);
-  const [premiumAtivo, setPremiumAtivo]       = useState(isPremium);
-  const [mostrarPaywall, setMostrarPaywall]   = useState(false);
-  const userId = useRef(getUserId());
+  const [mostrarPaywall, setMostrarPaywall] = useState(false);
+  const [mostrarHistorico, setMostrarHistorico] = useState(false);
 
   const bottomRef      = useRef(null);
   const inputRef       = useRef(null);
   const audioRef       = useRef(null);
   const recognitionRef = useRef(null);
 
-  // ── Detecta retorno do Stripe com ?premium=true ───────────────────
+  // ── Auth listener ──────────────────────────────────────────────
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("premium") === "true") {
-      ativarPremium();
-      setPremiumAtivo(true);
-      // Limpa a URL
-      window.history.replaceState({}, "", window.location.pathname);
-    }
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setUsuario(user);
+      if (user) {
+        const dados = await getUserData(user.uid);
+        setDadosUsuario(dados);
+        // Detecta retorno do Stripe
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("premium") === "true") {
+          await ativarPremiumDB(user.uid);
+          setDadosUsuario(d => ({ ...d, premium: true }));
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      }
+      setCarregandoAuth(false);
+    });
+    return unsub;
   }, []);
 
-  // Carrega vozes disponíveis — com retry para celular
   useEffect(() => {
     function carregarVozes() {
       const vs = window.speechSynthesis?.getVoices() || [];
@@ -405,11 +297,7 @@ export default function App() {
     window.speechSynthesis?.addEventListener("voiceschanged", carregarVozes);
     const t1 = setTimeout(carregarVozes, 500);
     const t2 = setTimeout(carregarVozes, 1500);
-    const t3 = setTimeout(carregarVozes, 3000);
-    return () => {
-      window.speechSynthesis?.removeEventListener("voiceschanged", carregarVozes);
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
-    };
+    return () => { window.speechSynthesis?.removeEventListener("voiceschanged", carregarVozes); clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   useEffect(() => {
@@ -417,58 +305,27 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensagens, carregando]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [mensagens, carregando]);
 
-  // ── Ducking ────────────────────────────────────────────────────
-  function abaixarMusica() {
-    if (!audioRef.current || !musicaAtiva) return;
-    audioRef.current.volume = 0.06;
-  }
-  function subirMusica() {
-    if (!audioRef.current || !musicaAtiva) return;
-    audioRef.current.volume = 0.25;
-  }
+  function abaixarMusica() { if (audioRef.current && musicaAtiva) audioRef.current.volume = 0.06; }
+  function subirMusica() { if (audioRef.current && musicaAtiva) audioRef.current.volume = 0.25; }
 
   function toggleMusica() {
-    if (!audioRef.current) {
-      audioRef.current = new Audio(MUSICA_URL);
-      audioRef.current.loop   = true;
-      audioRef.current.volume = 0.25;
-    }
-    if (musicaAtiva) {
-      audioRef.current.pause();
-      setMusicaAtiva(false);
-    } else {
-      audioRef.current.play().catch(() => {});
-      setMusicaAtiva(true);
-    }
+    if (!audioRef.current) { audioRef.current = new Audio(MUSICA_URL); audioRef.current.loop = true; audioRef.current.volume = 0.25; }
+    if (musicaAtiva) { audioRef.current.pause(); setMusicaAtiva(false); }
+    else { audioRef.current.play().catch(() => {}); setMusicaAtiva(true); }
   }
 
-  function toggleVoz() {
-    if (vozAtiva) window.speechSynthesis?.cancel();
-    setVozAtiva(v => !v);
-    setMostrarVozes(false);
-  }
+  function toggleVoz() { if (vozAtiva) window.speechSynthesis?.cancel(); setVozAtiva(v => !v); setMostrarVozes(false); }
 
   function falarTexto(texto) {
     if (!vozAtiva || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(texto);
-    utter.lang  = "pt-BR";
-    utter.rate  = velocidade;
-    utter.pitch = tom;
+    utter.lang = "pt-BR"; utter.rate = velocidade; utter.pitch = tom;
     if (vozSelecionada) utter.voice = vozSelecionada;
-    else {
-      const vs  = window.speechSynthesis.getVoices();
-      const voz = vs.find(v => v.lang.startsWith("pt") && v.name.toLowerCase().includes("fem"))
-               || vs.find(v => v.lang.startsWith("pt")) || null;
-      if (voz) utter.voice = voz;
-    }
-    utter.onstart = () => abaixarMusica();
-    utter.onend   = () => subirMusica();
-    utter.onerror = () => subirMusica();
+    else { const vs = window.speechSynthesis.getVoices(); const v = vs.find(v => v.lang.startsWith("pt")) || null; if (v) utter.voice = v; }
+    utter.onstart = () => abaixarMusica(); utter.onend = () => subirMusica(); utter.onerror = () => subirMusica();
     window.speechSynthesis.speak(utter);
   }
 
@@ -477,679 +334,255 @@ export default function App() {
     if (!SR) { alert("Seu navegador não suporta voz. Use o Chrome."); return; }
     if (escutando) { recognitionRef.current?.stop(); setEscutando(false); return; }
     const rec = new SR();
-    rec.lang            = "pt-BR";
-    rec.continuous      = false;
-    rec.interimResults  = false;
-    rec.onstart  = () => setEscutando(true);
-    rec.onend    = () => setEscutando(false);
-    rec.onerror  = () => setEscutando(false);
-    rec.onresult = e => { setInput(e.results[0][0].transcript); };
-    recognitionRef.current = rec;
-    rec.start();
+    rec.lang = "pt-BR"; rec.continuous = false; rec.interimResults = false;
+    rec.onstart = () => setEscutando(true); rec.onend = () => setEscutando(false); rec.onerror = () => setEscutando(false);
+    rec.onresult = e => setInput(e.results[0][0].transcript);
+    recognitionRef.current = rec; rec.start();
   }
 
   function verificarSenha() {
-    if (senhaInput.trim().toLowerCase() === SENHA_ACESSO) {
-      setTela("entrada"); setSenhaErro(false);
-    } else { setSenhaErro(true); setSenhaInput(""); }
+    if (senhaInput.trim().toLowerCase() === SENHA_ACESSO) { setTela("login"); setSenhaErro(false); }
+    else { setSenhaErro(true); setSenhaInput(""); }
   }
 
   function entrar() {
     setTela("oraculo");
     setTimeout(() => inputRef.current?.focus(), 400);
     setTimeout(() => {
-      if (!audioRef.current) {
-        audioRef.current = new Audio(MUSICA_URL);
-        audioRef.current.loop   = true;
-        audioRef.current.volume = 0.25;
-      }
-      audioRef.current.play().catch(() => {});
-      setMusicaAtiva(true);
+      if (!audioRef.current) { audioRef.current = new Audio(MUSICA_URL); audioRef.current.loop = true; audioRef.current.volume = 0.25; }
+      audioRef.current.play().catch(() => {}); setMusicaAtiva(true);
     }, 800);
   }
 
   function detectarCrise(texto) {
-    const palavras = ["suicídio","suicidio","me matar","acabar com tudo","não quero mais viver","nao quero mais viver","desaparecer","sem saída","sem saida","me machucar","desesperado","desesperada"];
-    return palavras.some(p => texto.toLowerCase().includes(p));
+    return ["suicídio","suicidio","me matar","acabar com tudo","não quero mais viver","nao quero mais viver","me machucar","desesperado","desesperada"].some(p => texto.toLowerCase().includes(p));
   }
 
   function compartilhar() {
     const url = window.location.href;
-    if (navigator.share) {
-      navigator.share({ title:"O Oráculo · Legado de Luz", text:"✨ Um espaço de acolhimento e reflexão: ", url });
-    } else {
-      navigator.clipboard.writeText(url);
-      alert("Link copiado! Cole no WhatsApp para compartilhar. 🕯️");
-    }
+    if (navigator.share) navigator.share({ title: "O Oráculo · Legado de Luz", text: "✨ Um espaço de acolhimento e reflexão: ", url });
+    else { navigator.clipboard.writeText(url); alert("Link copiado! 🕯️"); }
+  }
+
+  async function fazerLogout() {
+    await signOut(auth);
+    setUsuario(null); setDadosUsuario(null);
+    setTela("login"); setMensagens([]);
+    window.speechSynthesis?.cancel();
+    if (audioRef.current) { audioRef.current.pause(); setMusicaAtiva(false); }
   }
 
   async function enviar() {
-    if (!input.trim() || carregando) return;
-
-    // ── Verifica limite gratuito ──
-    if (!premiumAtivo && consultasUsadas >= LIMITE_GRATUITO) {
-      setMostrarPaywall(true);
-      return;
-    }
-
+    if (!input.trim() || carregando || !usuario) return;
+    const premium = dadosUsuario?.premium || false;
+    const consultasUsadas = dadosUsuario?.consultasUsadas || 0;
+    if (!premium && consultasUsadas >= LIMITE_GRATUITO) { setMostrarPaywall(true); return; }
     const texto = input.trim();
     setInput("");
     if (detectarCrise(texto)) setMostrarCVV(true);
-    const novas = [...mensagens, { role:"user", content:texto }];
+    const novas = [...mensagens, { role: "user", content: texto }];
     setMensagens(novas);
     setCarregando(true);
     try {
       const resposta = await consultarOraculo(novas);
-      setMensagens([...novas, { role:"assistant", content:resposta }]);
+      setMensagens([...novas, { role: "assistant", content: resposta }]);
       falarTexto(resposta);
-      // ── Incrementa contagem ──
-      if (!premiumAtivo) {
-        const novoTotal = incrementarConsulta();
-        setConsultasUsadas(novoTotal);
+      if (!premium) {
+        const novoTotal = await incrementarConsultaDB(usuario.uid);
+        setDadosUsuario(d => ({ ...d, consultasUsadas: novoTotal }));
       }
+      await salvarMensagemDB(usuario.uid, "user", texto);
+      await salvarMensagemDB(usuario.uid, "assistant", resposta);
     } catch {
-      setMensagens([...novas, { role:"assistant", content:"O silêncio também é uma resposta. Respire fundo e tente novamente..." }]);
+      setMensagens([...novas, { role: "assistant", content: "O silêncio também é uma resposta. Respire fundo e tente novamente..." }]);
     }
     setCarregando(false);
   }
 
-  const restantes = premiumAtivo ? null : Math.max(0, LIMITE_GRATUITO - consultasUsadas);
+  const premium = dadosUsuario?.premium || false;
+  const consultasUsadas = dadosUsuario?.consultasUsadas || 0;
+  const restantes = premium ? null : Math.max(0, LIMITE_GRATUITO - consultasUsadas);
+
+  if (carregandoAuth) return (
+    <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse at 20% 20%, #1a0a2e 0%, #050210 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{ color: "rgba(251,191,36,0.5)", fontFamily: "'Cinzel',serif", letterSpacing: 3, fontSize: 14 }}>✦ Carregando ✦</p>
+    </div>
+  );
 
   return (
-    <div style={{
-      minHeight: "100vh", width: "100%",
-      background: "radial-gradient(ellipse at 20% 20%, #1a0a2e 0%, #0d0618 40%, #050210 100%)",
-      display: "flex", flexDirection: "column", alignItems: "center",
-      fontFamily: "'Lora', Georgia, serif",
-      position: "relative", overflow: "hidden",
-    }}>
+    <div style={{ minHeight: "100vh", width: "100%", background: "radial-gradient(ellipse at 20% 20%, #1a0a2e 0%, #0d0618 40%, #050210 100%)", display: "flex", flexDirection: "column", alignItems: "center", fontFamily: "'Lora', Georgia, serif", position: "relative", overflow: "hidden" }}>
       <Stars />
-
-      {/* Nebulosa decorativa */}
-      <div style={{
-        position: "fixed", top: "-20%", right: "-10%",
-        width: 500, height: 500, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(88,28,135,0.15) 0%, transparent 70%)",
-        pointerEvents: "none",
-      }} />
-      <div style={{
-        position: "fixed", bottom: "-10%", left: "-10%",
-        width: 400, height: 400, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(30,58,138,0.12) 0%, transparent 70%)",
-        pointerEvents: "none",
-      }} />
+      <div style={{ position: "fixed", top: "-20%", right: "-10%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(88,28,135,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
+      <div style={{ position: "fixed", bottom: "-10%", left: "-10%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(30,58,138,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Cinzel:wght@400;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(251,191,36,0.2); border-radius: 10px; }
-        textarea { resize: none; }
-        textarea::placeholder { color: rgba(254,243,199,0.35); font-style: italic; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(251,191,36,0.2); border-radius: 10px; }
+        textarea { resize: none; } textarea::placeholder { color: rgba(254,243,199,0.35); font-style: italic; }
         @keyframes twinkle { 0%,100%{opacity:0} 50%{opacity:0.8} }
-        @keyframes flicker { 0%,100%{transform:translateX(-50%) scaleX(1) scaleY(1)} 25%{transform:translateX(-52%) scaleX(0.95) scaleY(1.05)} 75%{transform:translateX(-48%) scaleX(1.05) scaleY(0.97)} }
+        @keyframes flicker { 0%,100%{transform:translateX(-50%) scaleX(1)} 25%{transform:translateX(-52%) scaleX(0.95) scaleY(1.05)} 75%{transform:translateX(-48%) scaleX(1.05) scaleY(0.97)} }
         @keyframes glow { 0%,100%{opacity:0.6;transform:translateX(-50%) scale(1)} 50%{opacity:1;transform:translateX(-50%) scale(1.2)} }
         @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         @keyframes pulse-gold { 0%,100%{box-shadow:0 0 20px rgba(251,191,36,0.3)} 50%{box-shadow:0 0 40px rgba(251,191,36,0.6)} }
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
         @keyframes rotate-slow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes slideReflexao { 0%{opacity:0;transform:translateY(6px)} 15%,85%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-6px)} }
       `}</style>
 
-      {/* ── PAYWALL ── */}
-      {mostrarPaywall && (
-        <ModalUpgrade
-          userId={userId.current}
-          onFechar={() => setMostrarPaywall(false)}
-        />
-      )}
+      {mostrarPaywall && <ModalUpgrade uid={usuario?.uid} onFechar={() => setMostrarPaywall(false)} />}
 
-      {/* ── TELA DE SENHA ── */}
+      {/* ── TELA SENHA ── */}
       {tela === "senha" && (
-        <div style={{
-          flex:1, display:"flex", flexDirection:"column",
-          alignItems:"center", justifyContent:"center",
-          padding:"40px 28px", minHeight:"100vh",
-          position:"relative", zIndex:1,
-          animation:"fadeIn 1s ease",
-        }}>
-          <div style={{ animation:"float 4s ease-in-out infinite", marginBottom:28 }}>
-            <Flame/>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 28px", minHeight: "100vh", position: "relative", zIndex: 1, animation: "fadeIn 1s ease" }}>
+          <div style={{ animation: "float 4s ease-in-out infinite", marginBottom: 28 }}><Flame /></div>
+          <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 6, color: "rgba(251,191,36,0.5)", textTransform: "uppercase", margin: "0 0 10px" }}>Legado de Luz</p>
+          <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "clamp(30px,7vw,46px)", fontWeight: 700, color: "#fef3c7", textAlign: "center", lineHeight: 1.2, marginBottom: 8, letterSpacing: 2, textShadow: "0 0 40px rgba(251,191,36,0.3)" }}>O Oráculo</h1>
+          <div style={{ width: 50, height: 1, background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent)", margin: "14px auto 28px" }} />
+          <p style={{ color: "rgba(254,243,199,0.5)", fontSize: 14, textAlign: "center", lineHeight: 1.8, maxWidth: 260, marginBottom: 32, fontStyle: "italic" }}>Este espaço é reservado.<br />Digite a palavra de acesso para entrar.</p>
+          <div style={{ width: "100%", maxWidth: 280, display: "flex", flexDirection: "column", gap: 12 }}>
+            <input type="password" value={senhaInput} onChange={e => { setSenhaInput(e.target.value); setSenhaErro(false); }} onKeyDown={e => e.key === "Enter" && verificarSenha()} placeholder="Palavra de acesso..." style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${senhaErro ? "rgba(248,113,113,0.5)" : "rgba(251,191,36,0.25)"}`, borderRadius: 14, padding: "14px 18px", color: "#fef3c7", fontSize: 15, fontFamily: "'Lora',Georgia,serif", fontStyle: "italic", outline: "none", textAlign: "center", letterSpacing: 3 }} />
+            {senhaErro && <p style={{ color: "#f87171", fontSize: 12, textAlign: "center", fontStyle: "italic", margin: 0, animation: "fadeUp .3s ease" }}>Palavra incorreta. Tente novamente.</p>}
+            <button onClick={verificarSenha} style={{ background: "linear-gradient(135deg,rgba(139,100,20,0.4),rgba(200,168,75,0.2))", border: "1px solid rgba(251,191,36,0.4)", borderRadius: 100, padding: "14px 0", color: "#fef3c7", fontSize: 14, fontFamily: "'Cinzel',serif", letterSpacing: 3, cursor: "pointer" }}>Entrar</button>
           </div>
-
-          <p style={{ fontFamily:"'Cinzel',serif", fontSize:11, letterSpacing:6, color:"rgba(251,191,36,0.5)", textTransform:"uppercase", margin:"0 0 10px" }}>Legado de Luz</p>
-          <h1 style={{ fontFamily:"'Cinzel',serif", fontSize:"clamp(30px,7vw,46px)", fontWeight:700, color:"#fef3c7", textAlign:"center", lineHeight:1.2, marginBottom:8, letterSpacing:2, textShadow:"0 0 40px rgba(251,191,36,0.3)" }}>O Oráculo</h1>
-
-          <div style={{ width:50, height:1, background:"linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent)", margin:"14px auto 28px" }}/>
-
-          <p style={{ color:"rgba(254,243,199,0.5)", fontSize:14, textAlign:"center", lineHeight:1.8, maxWidth:260, marginBottom:32, fontStyle:"italic" }}>
-            Este espaço é reservado.<br/>Digite a palavra de acesso para entrar.
-          </p>
-
-          <div style={{ width:"100%", maxWidth:280, display:"flex", flexDirection:"column", gap:12 }}>
-            <input
-              type="password"
-              value={senhaInput}
-              onChange={e => { setSenhaInput(e.target.value); setSenhaErro(false); }}
-              onKeyDown={e => e.key === "Enter" && verificarSenha()}
-              placeholder="Palavra de acesso..."
-              style={{
-                background:"rgba(255,255,255,0.05)",
-                border:`1px solid ${senhaErro ? "rgba(248,113,113,0.5)" : "rgba(251,191,36,0.25)"}`,
-                borderRadius:14, padding:"14px 18px",
-                color:"#fef3c7", fontSize:15,
-                fontFamily:"'Lora',Georgia,serif",
-                fontStyle:"italic", outline:"none",
-                textAlign:"center", letterSpacing:3,
-                transition:"border .2s",
-              }}
-            />
-
-            {senhaErro && (
-              <p style={{ color:"#f87171", fontSize:12, textAlign:"center", fontStyle:"italic", margin:0, animation:"fadeUp .3s ease" }}>
-                Palavra incorreta. Tente novamente.
-              </p>
-            )}
-
-            <button onClick={verificarSenha}
-              style={{
-                background:"linear-gradient(135deg,rgba(139,100,20,0.4),rgba(200,168,75,0.2))",
-                border:"1px solid rgba(251,191,36,0.4)",
-                borderRadius:100, padding:"14px 0",
-                color:"#fef3c7", fontSize:14,
-                fontFamily:"'Cinzel',serif", letterSpacing:3,
-                cursor:"pointer", transition:"all .3s",
-              }}
-              onMouseOver={e => e.currentTarget.style.background="linear-gradient(135deg,rgba(139,100,20,0.6),rgba(200,168,75,0.35))"}
-              onMouseOut={e => e.currentTarget.style.background="linear-gradient(135deg,rgba(139,100,20,0.4),rgba(200,168,75,0.2))"}>
-              Entrar
-            </button>
-          </div>
-
-          <p style={{ color:"rgba(254,243,199,0.15)", fontSize:11, marginTop:40, fontStyle:"italic", textAlign:"center" }}>
-            Acesso restrito · Fase de testes
-          </p>
+          <p style={{ color: "rgba(254,243,199,0.15)", fontSize: 11, marginTop: 40, fontStyle: "italic", textAlign: "center" }}>Acesso restrito · Fase de testes</p>
         </div>
       )}
 
-      {/* ── TELA DE ENTRADA ── */}
-      {tela === "entrada" && (
-        <div style={{
-          flex: 1, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          padding: "40px 24px", minHeight: "100vh",
-          animation: "fadeIn 1.2s ease",
-          position: "relative", zIndex: 1,
-        }}>
-          <div style={{
-            position: "relative", marginBottom: 32,
-            animation: "float 4s ease-in-out infinite",
-          }}>
-            <div style={{
-              width: 120, height: 120, borderRadius: "50%",
-              border: "1px solid rgba(251,191,36,0.2)",
-              position: "absolute", top: "50%", left: "50%",
-              transform: "translate(-50%,-50%)",
-              animation: "rotate-slow 20s linear infinite",
-            }}>
-              {[0,60,120,180,240,300].map(deg => (
-                <div key={deg} style={{
-                  position: "absolute", width: 4, height: 4, borderRadius: "50%",
-                  background: "rgba(251,191,36,0.5)",
-                  top: "50%", left: "50%",
-                  transform: `rotate(${deg}deg) translateX(58px) translate(-50%,-50%)`,
-                }} />
-              ))}
+      {/* ── TELA LOGIN ── */}
+      {tela === "login" && !usuario && <TelaLogin />}
+
+      {/* ── TELA ENTRADA (após login) ── */}
+      {tela === "login" && usuario && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", minHeight: "100vh", animation: "fadeIn 1.2s ease", position: "relative", zIndex: 1 }}>
+          <div style={{ position: "relative", marginBottom: 32, animation: "float 4s ease-in-out infinite" }}>
+            <div style={{ width: 120, height: 120, borderRadius: "50%", border: "1px solid rgba(251,191,36,0.2)", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", animation: "rotate-slow 20s linear infinite" }}>
+              {[0,60,120,180,240,300].map(deg => <div key={deg} style={{ position: "absolute", width: 4, height: 4, borderRadius: "50%", background: "rgba(251,191,36,0.5)", top: "50%", left: "50%", transform: `rotate(${deg}deg) translateX(58px) translate(-50%,-50%)` }} />)}
             </div>
             <Flame />
           </div>
+          <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 6, color: "rgba(251,191,36,0.5)", textTransform: "uppercase", marginBottom: 10 }}>Legado de Luz</p>
+          <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "clamp(36px,8vw,52px)", fontWeight: 700, color: "#fef3c7", textAlign: "center", lineHeight: 1.2, marginBottom: 8, letterSpacing: 2, textShadow: "0 0 40px rgba(251,191,36,0.3)" }}>O Oráculo</h1>
+          <div style={{ width: 60, height: 1, background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)", margin: "16px auto 24px" }} />
 
-          <p style={{
-            fontFamily: "'Cinzel', serif",
-            fontSize: 11, letterSpacing: 6,
-            color: "rgba(251,191,36,0.5)",
-            textTransform: "uppercase", marginBottom: 10,
-            animation: "fadeUp 0.8s ease 0.3s both",
-          }}>Legado de Luz</p>
-
-          <h1 style={{
-            fontFamily: "'Cinzel', serif",
-            fontSize: "clamp(36px, 8vw, 52px)",
-            fontWeight: 700, color: "#fef3c7",
-            textAlign: "center", lineHeight: 1.2,
-            marginBottom: 8, letterSpacing: 2,
-            textShadow: "0 0 40px rgba(251,191,36,0.3)",
-            animation: "fadeUp 0.8s ease 0.5s both",
-          }}>O Oráculo</h1>
-
-          <div style={{
-            width: 60, height: 1,
-            background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)",
-            margin: "16px auto 24px",
-            animation: "fadeUp 0.8s ease 0.7s both",
-          }} />
-
-          <p style={{
-            color: "rgba(254,243,199,0.55)", fontSize: 15,
-            textAlign: "center", lineHeight: 1.8,
-            maxWidth: 280, marginBottom: 40,
-            fontStyle: "italic",
-            animation: "fadeUp 0.8s ease 0.9s both",
-          }}>
-            Um espaço de escuta, reflexão e luz para sua jornada.
-          </p>
-
-          <div style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(251,191,36,0.15)",
-            borderRadius: 16, padding: "16px 22px",
-            maxWidth: 320, textAlign: "center",
-            marginBottom: 40, minHeight: 70,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            animation: "fadeUp 0.8s ease 1.1s both",
-          }}>
-            <p style={{
-              color: "rgba(254,243,199,0.75)", fontSize: 13,
-              lineHeight: 1.7, fontStyle: "italic",
-              animation: "slideReflexao 5s ease infinite",
-              key: reflexao,
-            }}>{REFLEXOES_INICIAIS[reflexao]}</p>
+          {/* Saudação ao usuário */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(251,191,36,0.12)", borderRadius: 100, padding: "8px 16px" }}>
+            {usuario.photoURL && <img src={usuario.photoURL} alt="" style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid rgba(251,191,36,0.3)" }} />}
+            <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 13, fontStyle: "italic" }}>Olá, {usuario.displayName?.split(" ")[0]} ✦</p>
           </div>
 
-          {/* Indicador de consultas restantes */}
-          {!premiumAtivo && (
-            <div style={{
-              marginBottom: 20,
-              animation: "fadeUp 0.8s ease 1.2s both",
-            }}>
-              {restantes > 0 ? (
-                <p style={{
-                  color: "rgba(251,191,36,0.45)", fontSize: 12,
-                  textAlign: "center", fontStyle: "italic",
-                }}>
-                  ✦ {restantes} consulta{restantes !== 1 ? "s" : ""} gratuita{restantes !== 1 ? "s" : ""} restante{restantes !== 1 ? "s" : ""}
-                </p>
-              ) : (
-                <p style={{
-                  color: "rgba(248,113,113,0.6)", fontSize: 12,
-                  textAlign: "center", fontStyle: "italic",
-                }}>
-                  Suas consultas gratuitas foram usadas
-                </p>
-              )}
-            </div>
-          )}
-          {premiumAtivo && (
-            <div style={{ marginBottom: 20, animation: "fadeUp 0.8s ease 1.2s both" }}>
-              <p style={{ color: "rgba(110,231,183,0.5)", fontSize: 12, textAlign: "center", fontStyle: "italic" }}>
-                ✦ Acesso completo ativo
-              </p>
-            </div>
+          {!premium ? (
+            <p style={{ color: "rgba(251,191,36,0.45)", fontSize: 12, textAlign: "center", fontStyle: "italic", marginBottom: 24 }}>
+              ✦ {restantes} consulta{restantes !== 1 ? "s" : ""} gratuita{restantes !== 1 ? "s" : ""} restante{restantes !== 1 ? "s" : ""}
+            </p>
+          ) : (
+            <p style={{ color: "rgba(110,231,183,0.5)", fontSize: 12, textAlign: "center", fontStyle: "italic", marginBottom: 24 }}>✦ Acesso completo ativo</p>
           )}
 
-          <button onClick={entrar} style={{
-            background: "linear-gradient(135deg, rgba(139,100,20,0.4), rgba(200,168,75,0.2))",
-            border: "1px solid rgba(251,191,36,0.4)",
-            borderRadius: 100, padding: "16px 48px",
-            color: "#fef3c7", fontSize: 15,
-            fontFamily: "'Cinzel', serif", letterSpacing: 3,
-            cursor: "pointer", transition: "all 0.3s",
-            animation: "fadeUp 0.8s ease 1.3s both, pulse-gold 3s ease-in-out 2s infinite",
-          }}
-            onMouseOver={e => { e.currentTarget.style.background = "linear-gradient(135deg, rgba(139,100,20,0.6), rgba(200,168,75,0.35))"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-            onMouseOut={e => { e.currentTarget.style.background = "linear-gradient(135deg, rgba(139,100,20,0.4), rgba(200,168,75,0.2))"; e.currentTarget.style.transform = "translateY(0)"; }}>
+          <button onClick={entrar} style={{ background: "linear-gradient(135deg, rgba(139,100,20,0.4), rgba(200,168,75,0.2))", border: "1px solid rgba(251,191,36,0.4)", borderRadius: 100, padding: "16px 48px", color: "#fef3c7", fontSize: 15, fontFamily: "'Cinzel',serif", letterSpacing: 3, cursor: "pointer", animation: "pulse-gold 3s ease-in-out infinite" }}>
             Consultar
           </button>
 
-          <p style={{
-            color: "rgba(254,243,199,0.2)", fontSize: 11,
-            marginTop: 32, textAlign: "center", lineHeight: 1.6,
-            fontStyle: "italic", maxWidth: 260,
-            animation: "fadeUp 0.8s ease 1.5s both",
-          }}>
-            Um espaço de reflexão e acolhimento.<br/>Não substitui acompanhamento profissional.
-          </p>
-
-          <button onClick={() => setTela("sobre")} style={{
-            background: "none", border: "none",
-            color: "rgba(254,243,199,0.2)", fontSize: 11,
-            marginTop: 16, cursor: "pointer", fontFamily: "'Lora',serif",
-            fontStyle: "italic", textDecoration: "underline",
-            textDecorationColor: "rgba(254,243,199,0.15)",
-          }}>Sobre o Oráculo</button>
+          <div style={{ display: "flex", gap: 16, marginTop: 24 }}>
+            <button onClick={() => setMostrarHistorico(true)} style={{ background: "none", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 100, padding: "8px 16px", color: "rgba(254,243,199,0.3)", fontSize: 11, cursor: "pointer", fontFamily: "'Cinzel',serif", letterSpacing: 1 }}>
+              📖 Histórico
+            </button>
+            <button onClick={fazerLogout} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.2)", fontSize: 11, cursor: "pointer", fontFamily: "'Lora',serif", fontStyle: "italic" }}>
+              Sair
+            </button>
+          </div>
         </div>
       )}
 
-      {/* ── TELA SOBRE ── */}
-      {tela === "sobre" && (
-        <div style={{
-          flex: 1, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          padding: "40px 28px", minHeight: "100vh",
-          position: "relative", zIndex: 1,
-          animation: "fadeIn 0.6s ease",
-          maxWidth: 480, margin: "0 auto",
-        }}>
-          <button onClick={() => setTela("entrada")} style={{
-            position: "absolute", top: 24, left: 20,
-            background: "none", border: "none",
-            color: "rgba(254,243,199,0.4)", fontSize: 20,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>←</button>
-
-          <p style={{ fontSize: 36, marginBottom: 20 }}>🕯️</p>
-
-          <h2 style={{
-            fontFamily: "'Cinzel',serif", fontSize: 20,
-            color: "#fef3c7", letterSpacing: 2,
-            marginBottom: 20, textAlign: "center",
-          }}>Sobre o Oráculo</h2>
-
-          <div style={{
-            width: 40, height: 1,
-            background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.4),transparent)",
-            marginBottom: 24,
-          }} />
-
-          {[
-            { titulo: "O que é o Oráculo?", texto: "Um espaço digital de escuta, acolhimento e reflexão. Um lugar onde você pode colocar para fora o que está sentindo, sem julgamentos e sem pressa." },
-            { titulo: "De onde vem?", texto: "O Oráculo nasceu do canal Legado de Luz — um projeto dedicado a oferecer perspectiva espiritual para as jornadas da vida. Tudo aqui é feito com intenção genuína de ajudar." },
-            { titulo: "É seguro?", texto: "Suas conversas são privadas. O Oráculo é uma experiência de bem-estar com inteligência artificial. Não substitui acompanhamento psicológico ou médico profissional." },
-            { titulo: "Como apoiar?", texto: "Compartilhe com alguém que precise. Inscreva-se no canal Legado de Luz no YouTube. Sua presença já é um apoio." },
-          ].map((item, i) => (
-            <div key={i} style={{
-              marginBottom: 20, width: "100%",
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(251,191,36,0.12)",
-              borderRadius: 14, padding: "16px 18px",
-            }}>
-              <p style={{ color: "rgba(251,191,36,0.7)", fontSize: 12, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 6 }}>{item.titulo}</p>
-              <p style={{ color: "rgba(254,243,199,0.55)", fontSize: 13, lineHeight: 1.8, fontStyle: "italic" }}>{item.texto}</p>
-            </div>
-          ))}
-
-          <button onClick={compartilhar} style={{
-            display: "flex", alignItems: "center", gap: 8,
-            background: "linear-gradient(135deg,rgba(139,100,20,0.3),rgba(200,168,75,0.15))",
-            border: "1px solid rgba(251,191,36,0.3)",
-            borderRadius: 100, padding: "12px 28px",
-            color: "#fef3c7", fontSize: 13,
-            fontFamily: "'Cinzel',serif", letterSpacing: 2,
-            cursor: "pointer", marginTop: 4,
-          }}>
-            ✦ Compartilhar o Oráculo
-          </button>
-
-          <p style={{ color: "rgba(254,243,199,0.15)", fontSize: 10, marginTop: 8, fontStyle: "italic", textAlign: "center" }}>
-            🎵 Música: hirohasaimoto from Pixabay
-          </p>
-          <p style={{ color:"rgba(254,243,199,0.15)", fontSize:10, marginTop:8, fontStyle:"italic", textAlign:"center" }}>
-            © Legado de Luz · Feito com intenção e cuidado
-          </p>
+      {/* ── HISTÓRICO ── */}
+      {mostrarHistorico && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(5,2,16,0.95)", backdropFilter: "blur(16px)", display: "flex", flexDirection: "column", padding: "24px 20px", animation: "fadeIn .3s ease" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <p style={{ fontFamily: "'Cinzel',serif", color: "#fef3c7", fontSize: 16, letterSpacing: 2 }}>📖 Seu Histórico</p>
+            <button onClick={() => setMostrarHistorico(false)} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.4)", fontSize: 22, cursor: "pointer" }}>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {dadosUsuario?.historico?.length > 0 ? (
+              [...dadosUsuario.historico].reverse().map((msg, i) => (
+                <div key={i} style={{ marginBottom: 12, padding: "12px 16px", background: msg.role === "user" ? "rgba(139,100,20,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${msg.role === "user" ? "rgba(200,168,75,0.2)" : "rgba(251,191,36,0.08)"}`, borderRadius: 14 }}>
+                  <p style={{ color: "rgba(251,191,36,0.4)", fontSize: 10, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 4 }}>{msg.role === "user" ? "Você" : "Oráculo"} · {new Date(msg.timestamp).toLocaleDateString("pt-BR")}</p>
+                  <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 13, lineHeight: 1.7, fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
+                </div>
+              ))
+            ) : (
+              <p style={{ color: "rgba(254,243,199,0.3)", textAlign: "center", fontStyle: "italic", marginTop: 40 }}>Suas conversas aparecerão aqui.</p>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── TELA DO ORÁCULO ── */}
-      {tela === "oraculo" && (
-        <div style={{
-          flex: 1, display: "flex", flexDirection: "column",
-          width: "100%", maxWidth: 600, minHeight: "100vh",
-          position: "relative", zIndex: 1,
-          animation: "fadeIn 0.8s ease",
-        }}>
+      {/* ── TELA ORÁCULO ── */}
+      {tela === "oraculo" && usuario && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", width: "100%", maxWidth: 600, minHeight: "100vh", position: "relative", zIndex: 1, animation: "fadeIn 0.8s ease" }}>
           {/* Header */}
-          <div style={{
-            padding: "20px 24px 16px",
-            borderBottom: "1px solid rgba(251,191,36,0.1)",
-            backdropFilter: "blur(20px)",
-            background: "rgba(5,2,16,0.5)",
-            display: "flex", alignItems: "center", gap: 14,
-            position: "sticky", top: 0, zIndex: 10,
-          }}>
-            <button onClick={() => { setTela("entrada"); setMensagens([]); setMostrarCVV(false); window.speechSynthesis?.cancel(); }}
-              style={{ background: "none", border: "none", color: "rgba(254,243,199,0.4)", fontSize: 20, cursor: "pointer", padding: "4px 8px", borderRadius: 8, transition: "color .2s" }}
-              onMouseOver={e => e.currentTarget.style.color = "#fef3c7"}
-              onMouseOut={e => e.currentTarget.style.color = "rgba(254,243,199,0.4)"}>←</button>
-
+          <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid rgba(251,191,36,0.1)", backdropFilter: "blur(20px)", background: "rgba(5,2,16,0.5)", display: "flex", alignItems: "center", gap: 14, position: "sticky", top: 0, zIndex: 10 }}>
+            <button onClick={() => { setTela("login"); setMensagens([]); setMostrarCVV(false); window.speechSynthesis?.cancel(); }} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.4)", fontSize: 20, cursor: "pointer", padding: "4px 8px", borderRadius: 8 }}>←</button>
             <div style={{ flex: 1, textAlign: "center" }}>
               <p style={{ fontFamily: "'Cinzel',serif", fontSize: 16, color: "#fef3c7", letterSpacing: 2, margin: 0 }}>O Oráculo</p>
               <p style={{ color: "rgba(251,191,36,0.5)", fontSize: 10, letterSpacing: 3, textTransform: "uppercase", margin: "2px 0 0", fontFamily: "'Cinzel',serif" }}>Legado de Luz</p>
             </div>
-
-            {/* Controles */}
-            <div style={{ display: "flex", gap: 5, alignItems: "center", position:"relative" }}>
-
-              {/* Contador de consultas (se não premium) */}
-              {!premiumAtivo && (
-                <button onClick={() => setMostrarPaywall(true)} title="Ver plano completo"
-                  style={{
-                    background: restantes <= 3 ? "rgba(248,113,113,0.1)" : "rgba(251,191,36,0.08)",
-                    border: `1px solid ${restantes <= 3 ? "rgba(248,113,113,0.3)" : "rgba(251,191,36,0.2)"}`,
-                    borderRadius: 8, padding: "4px 9px",
-                    color: restantes <= 3 ? "#f87171" : "rgba(251,191,36,0.6)",
-                    fontSize: 11, cursor: "pointer",
-                    fontFamily: "'Cinzel',serif", letterSpacing: 1,
-                    transition: "all .2s",
-                  }}>
+            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+              {!premium && (
+                <button onClick={() => setMostrarPaywall(true)} style={{ background: restantes <= 3 ? "rgba(248,113,113,0.1)" : "rgba(251,191,36,0.08)", border: `1px solid ${restantes <= 3 ? "rgba(248,113,113,0.3)" : "rgba(251,191,36,0.2)"}`, borderRadius: 8, padding: "4px 9px", color: restantes <= 3 ? "#f87171" : "rgba(251,191,36,0.6)", fontSize: 11, cursor: "pointer", fontFamily: "'Cinzel',serif" }}>
                   {restantes}✦
                 </button>
               )}
-              {premiumAtivo && (
-                <span style={{
-                  fontSize: 11, color: "rgba(110,231,183,0.5)",
-                  fontFamily: "'Cinzel',serif", letterSpacing: 1,
-                  padding: "4px 8px",
-                }}>∞✦</span>
-              )}
-
-              <button onClick={toggleMusica} title={musicaAtiva ? "Pausar música" : "Tocar música"}
-                style={{ background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none", border: musicaAtiva ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent", borderRadius: 8, color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", transition: "all .2s" }}>
-                {musicaAtiva ? "🔔" : "🔕"}
-              </button>
-
-              <div style={{position:"relative"}}>
-                <button onClick={()=>setMostrarVozes(v=>!v)} title={vozAtiva ? "Voz ativa" : "Ativar voz"}
-                  style={{ background: vozAtiva ? "rgba(110,231,183,0.12)" : "none", border: vozAtiva ? "1px solid rgba(110,231,183,0.3)" : "1px solid transparent", borderRadius: 8, color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", transition: "all .2s" }}>
-                  {vozAtiva ? "🔊" : "🔈"}
-                </button>
-
-                {mostrarVozes && (
-                  <div style={{ position:"absolute", top:44, right:0, background:"rgba(10,5,25,0.97)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:14, padding:12, minWidth:220, zIndex:100, animation:"fadeUp .2s ease" }}>
-                    <p style={{ color:"rgba(251,191,36,0.7)", fontSize:11, fontFamily:"'Cinzel',serif", letterSpacing:1, margin:"0 0 10px", textAlign:"center" }}>Escolher voz</p>
-
-                    <button onClick={toggleVoz}
-                      style={{ width:"100%", padding:"8px 10px", marginBottom:8, background: vozAtiva?"rgba(248,113,113,0.1)":"rgba(110,231,183,0.1)", border:`1px solid ${vozAtiva?"rgba(248,113,113,0.3)":"rgba(110,231,183,0.3)"}`, borderRadius:10, color: vozAtiva?"#f87171":"#6EE7B7", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-                      {vozAtiva ? "🔇 Desativar voz" : "🔊 Ativar voz"}
-                    </button>
-
-                    {vozes.length > 0 && vozAtiva && (
-                      <>
-                        <p style={{ color:"rgba(254,243,199,0.3)", fontSize:10, margin:"4px 0 6px", fontStyle:"italic", textAlign:"center" }}>
-                          {vozes.length > 0 ? `${vozes.length} voz(es) disponível(is)` : "Nenhuma voz encontrada"}
-                        </p>
-                        {vozes.map((v, i) => (
-                          <button key={i} onClick={()=>{ setVozSelecionada(v); setMostrarVozes(false); }}
-                            style={{ width:"100%", padding:"7px 10px", marginBottom:5, background: vozSelecionada?.name===v.name?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)", border:`1px solid ${vozSelecionada?.name===v.name?"rgba(251,191,36,0.4)":"rgba(255,255,255,0.07)"}`, borderRadius:9, color: vozSelecionada?.name===v.name?"#fbbf24":"#94a3b8", fontSize:11, cursor:"pointer", fontFamily:"inherit", textAlign:"left", transition:"all .15s" }}>
-                            {vozSelecionada?.name===v.name?"✦ ":""}{v.name.length > 28 ? v.name.slice(0,28)+"…" : v.name}
-                          </button>
-                        ))}
-                      </>
-                    )}
-
-                    {vozAtiva && (
-                      <div style={{ marginBottom:10 }}>
-                        <p style={{ color:"rgba(254,243,199,0.3)", fontSize:10, margin:"0 0 6px", fontStyle:"italic", textAlign:"center" }}>Velocidade da voz</p>
-                        <div style={{ display:"flex", gap:5, justifyContent:"center", marginBottom:10 }}>
-                          {[
-                            { label:"🐢 Lenta",  val:0.65 },
-                            { label:"▶ Normal",  val:0.85 },
-                            { label:"⚡ Rápida", val:1.1  },
-                          ].map(op => (
-                            <button key={op.val} onClick={()=>setVelocidade(op.val)}
-                              style={{ flex:1, padding:"6px 4px", background: velocidade===op.val?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)", border: velocidade===op.val?"1px solid rgba(251,191,36,0.4)":"1px solid rgba(255,255,255,0.07)", borderRadius:9, color: velocidade===op.val?"#fbbf24":"#64748b", fontSize:10, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
-                              {op.label}
-                            </button>
-                          ))}
-                        </div>
-
-                        <p style={{ color:"rgba(254,243,199,0.3)", fontSize:10, margin:"0 0 6px", fontStyle:"italic", textAlign:"center" }}>Tom da voz</p>
-                        <div style={{ display:"flex", gap:5, justifyContent:"center" }}>
-                          {[
-                            { label:"🌑 Grave",  val:0.6  },
-                            { label:"◉ Normal",  val:0.92 },
-                            { label:"✨ Agudo",  val:1.3  },
-                          ].map(op => (
-                            <button key={op.val} onClick={()=>setTom(op.val)}
-                              style={{ flex:1, padding:"6px 4px", background: tom===op.val?"rgba(110,231,183,0.12)":"rgba(255,255,255,0.04)", border: tom===op.val?"1px solid rgba(110,231,183,0.3)":"1px solid rgba(255,255,255,0.07)", borderRadius:9, color: tom===op.val?"#6EE7B7":"#64748b", fontSize:10, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
-                              {op.label}
-                            </button>
-                          ))}
-                        </div>
-
-                        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"12px 0 8px" }}/>
-                      </div>
-                    )}
-
-                    {vozAtiva && vozes.length === 0 && (
-                      <button onClick={()=>{
-                        const vs = window.speechSynthesis?.getVoices() || [];
-                        setVozes(vs);
-                      }}
-                        style={{ width:"100%", padding:"8px", marginBottom:6, background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:10, color:"#fbbf24", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
-                        🔄 Recarregar vozes
-                      </button>
-                    )}
-
-                    <button onClick={()=>setMostrarVozes(false)}
-                      style={{ width:"100%", padding:"6px", marginTop:4, background:"none", border:"none", color:"rgba(254,243,199,0.2)", fontSize:11, cursor:"pointer", fontFamily:"inherit", fontStyle:"italic" }}>
-                      Fechar
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <button onClick={compartilhar} title="Compartilhar"
-                style={{ background:"none", border:"none", color:"rgba(254,243,199,0.35)", fontSize:18, cursor:"pointer", padding:"4px 7px", borderRadius:8, transition:"color .2s" }}
-                onMouseOver={e=>e.currentTarget.style.color="#fbbf24"}
-                onMouseOut={e=>e.currentTarget.style.color="rgba(254,243,199,0.35)"}>⬆</button>
+              {premium && <span style={{ fontSize: 11, color: "rgba(110,231,183,0.5)", fontFamily: "'Cinzel',serif", padding: "4px 8px" }}>∞✦</span>}
+              <button onClick={() => setMostrarHistorico(true)} title="Histórico" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>📖</button>
+              <button onClick={toggleMusica} style={{ background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none", border: musicaAtiva ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent", borderRadius: 8, color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{musicaAtiva ? "🔔" : "🔕"}</button>
+              <button onClick={() => setMostrarVozes(v => !v)} style={{ background: vozAtiva ? "rgba(110,231,183,0.12)" : "none", border: vozAtiva ? "1px solid rgba(110,231,183,0.3)" : "1px solid transparent", borderRadius: 8, color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{vozAtiva ? "🔊" : "🔈"}</button>
+              <button onClick={compartilhar} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 18, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>⬆</button>
             </div>
           </div>
 
+          {/* Painel de voz */}
+          {mostrarVozes && (
+            <div style={{ position: "fixed", top: 70, right: 10, background: "rgba(10,5,25,0.97)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 14, padding: 12, minWidth: 200, zIndex: 100, animation: "fadeUp .2s ease" }}>
+              <button onClick={toggleVoz} style={{ width: "100%", padding: "8px 10px", marginBottom: 8, background: vozAtiva ? "rgba(248,113,113,0.1)" : "rgba(110,231,183,0.1)", border: `1px solid ${vozAtiva ? "rgba(248,113,113,0.3)" : "rgba(110,231,183,0.3)"}`, borderRadius: 10, color: vozAtiva ? "#f87171" : "#6EE7B7", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                {vozAtiva ? "🔇 Desativar voz" : "🔊 Ativar voz"}
+              </button>
+              <button onClick={() => setMostrarVozes(false)} style={{ width: "100%", padding: "6px", background: "none", border: "none", color: "rgba(254,243,199,0.2)", fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontStyle: "italic" }}>Fechar</button>
+            </div>
+          )}
+
           {/* Mensagens */}
-          <div style={{
-            flex: 1, overflowY: "auto",
-            padding: "24px 20px",
-            display: "flex", flexDirection: "column",
-          }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column" }}>
             {mensagens.length === 0 && (
-              <div style={{
-                textAlign: "center", padding: "40px 20px",
-                animation: "fadeUp 0.8s ease 0.2s both",
-              }}>
-                <div style={{
-                  width: 64, height: 64, borderRadius: "50%",
-                  background: "radial-gradient(circle, rgba(251,191,36,0.2), transparent)",
-                  border: "1px solid rgba(251,191,36,0.2)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  margin: "0 auto 20px", fontSize: 24,
-                  animation: "pulse-gold 3s ease-in-out infinite",
-                }}>✦</div>
-
-                <p style={{
-                  fontFamily: "'Cinzel',serif",
-                  color: "rgba(254,243,199,0.8)", fontSize: 17,
-                  lineHeight: 1.6, marginBottom: 24,
-                  fontStyle: "italic",
-                }}>{OPENING_PHRASES[Math.floor(Math.random() * OPENING_PHRASES.length)]}</p>
-
-                <div style={{
-                  width: 40, height: 1,
-                  background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)",
-                  margin: "0 auto 24px",
-                }} />
-
-                <p style={{
-                  color: "rgba(254,243,199,0.35)", fontSize: 12,
-                  lineHeight: 1.7, fontStyle: "italic",
-                }}>Este é um espaço sagrado de escuta.<br />Escreva o que está no seu coração.</p>
+              <div style={{ textAlign: "center", padding: "40px 20px", animation: "fadeUp 0.8s ease 0.2s both" }}>
+                <div style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,191,36,0.2), transparent)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 24, animation: "pulse-gold 3s ease-in-out infinite" }}>✦</div>
+                <p style={{ fontFamily: "'Cinzel',serif", color: "rgba(254,243,199,0.8)", fontSize: 17, lineHeight: 1.6, marginBottom: 24, fontStyle: "italic" }}>{OPENING_PHRASES[Math.floor(Math.random() * OPENING_PHRASES.length)]}</p>
+                <div style={{ width: 40, height: 1, background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)", margin: "0 auto 24px" }} />
+                <p style={{ color: "rgba(254,243,199,0.35)", fontSize: 12, lineHeight: 1.7, fontStyle: "italic" }}>Este é um espaço sagrado de escuta.<br />Escreva o que está no seu coração.</p>
               </div>
             )}
-
             {mensagens.map((msg, i) => <Mensagem key={i} msg={msg} index={i} />)}
 
-            {/* Aviso de limite próximo */}
-            {!premiumAtivo && restantes <= 3 && restantes > 0 && mensagens.length > 0 && (
-              <div style={{
-                background: "rgba(251,191,36,0.05)",
-                border: "1px solid rgba(251,191,36,0.15)",
-                borderRadius: 14, padding: "12px 16px",
-                margin: "4px 0", animation: "fadeUp .4s ease",
-                textAlign: "center",
-              }}>
-                <p style={{ color: "rgba(251,191,36,0.6)", fontSize: 12, fontStyle: "italic", margin: "0 0 6px" }}>
-                  ✦ {restantes} consulta{restantes !== 1 ? "s" : ""} restante{restantes !== 1 ? "s" : ""}
-                </p>
-                <button onClick={() => setMostrarPaywall(true)} style={{
-                  background: "none", border: "1px solid rgba(251,191,36,0.25)",
-                  borderRadius: 100, padding: "6px 16px",
-                  color: "rgba(251,191,36,0.7)", fontSize: 11,
-                  fontFamily: "'Cinzel',serif", letterSpacing: 1,
-                  cursor: "pointer",
-                }}>Ver plano completo</button>
+            {!premium && restantes <= 3 && restantes > 0 && mensagens.length > 0 && (
+              <div style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 14, padding: "12px 16px", margin: "4px 0", textAlign: "center" }}>
+                <p style={{ color: "rgba(251,191,36,0.6)", fontSize: 12, fontStyle: "italic", margin: "0 0 6px" }}>✦ {restantes} consulta{restantes !== 1 ? "s" : ""} restante{restantes !== 1 ? "s" : ""}</p>
+                <button onClick={() => setMostrarPaywall(true)} style={{ background: "none", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 100, padding: "6px 16px", color: "rgba(251,191,36,0.7)", fontSize: 11, fontFamily: "'Cinzel',serif", cursor: "pointer" }}>Ver plano completo</button>
               </div>
             )}
 
-            {/* Alerta de crise — CVV */}
             {mostrarCVV && (
-              <div style={{
-                background: "rgba(239,68,68,0.08)",
-                border: "1px solid rgba(239,68,68,0.25)",
-                borderRadius: 16, padding: "14px 16px",
-                margin: "8px 0", animation: "fadeUp .4s ease",
-              }}>
+              <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 16, padding: "14px 16px", margin: "8px 0" }}>
                 <p style={{ color: "#fca5a5", fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>💛 Você não está sozinho</p>
-                <p style={{ color: "rgba(252,165,165,0.75)", fontSize: 12, lineHeight: 1.7, margin: "0 0 10px" }}>
-                  O Oráculo está aqui para ouvir. Mas se você estiver passando por um momento muito difícil, existe apoio humano e gratuito disponível agora.
-                </p>
-                <p style={{ color: "#fca5a5", fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>
-                  CVV — Centro de Valorização da Vida
-                </p>
-                <p style={{ color: "rgba(252,165,165,0.75)", fontSize: 12, margin: 0 }}>
-                  📞 Ligue <strong style={{ color: "#fca5a5" }}>188</strong> — gratuito, 24h, sigiloso
-                </p>
-                <button onClick={() => setMostrarCVV(false)} style={{
-                  background: "none", border: "none",
-                  color: "rgba(252,165,165,0.4)", fontSize: 11,
-                  cursor: "pointer", marginTop: 8, fontFamily: "inherit",
-                  fontStyle: "italic",
-                }}>Fechar aviso</button>
+                <p style={{ color: "rgba(252,165,165,0.75)", fontSize: 12, lineHeight: 1.7, margin: "0 0 10px" }}>CVV — Centro de Valorização da Vida</p>
+                <p style={{ color: "rgba(252,165,165,0.75)", fontSize: 12, margin: 0 }}>📞 Ligue <strong style={{ color: "#fca5a5" }}>188</strong> — gratuito, 24h, sigiloso</p>
+                <button onClick={() => setMostrarCVV(false)} style={{ background: "none", border: "none", color: "rgba(252,165,165,0.4)", fontSize: 11, cursor: "pointer", marginTop: 8, fontFamily: "inherit", fontStyle: "italic" }}>Fechar</button>
               </div>
             )}
 
-            {/* Loading */}
             {carregando && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", animation: "fadeUp 0.3s ease" }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                  background: "radial-gradient(circle, #fbbf24, #f97316)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, boxShadow: "0 0 12px rgba(251,191,36,0.5)",
-                }}>✦</div>
-                <div style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(251,191,36,0.1)",
-                  borderRadius: "20px 20px 20px 4px",
-                  padding: "13px 18px", display: "flex", gap: 6, alignItems: "center",
-                }}>
-                  {[0, 1, 2].map(i => (
-                    <div key={i} style={{
-                      width: 6, height: 6, borderRadius: "50%",
-                      background: "rgba(251,191,36,0.6)",
-                      animation: `twinkle 1.2s ease-in-out ${i * 0.3}s infinite`,
-                    }} />
-                  ))}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "radial-gradient(circle, #fbbf24, #f97316)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>✦</div>
+                <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(251,191,36,0.1)", borderRadius: "20px 20px 20px 4px", padding: "13px 18px", display: "flex", gap: 6 }}>
+                  {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(251,191,36,0.6)", animation: `twinkle 1.2s ease-in-out ${i * 0.3}s infinite` }} />)}
                 </div>
               </div>
             )}
@@ -1157,82 +590,20 @@ export default function App() {
           </div>
 
           {/* Input */}
-          <div style={{
-            padding: "16px 20px 28px",
-            borderTop: "1px solid rgba(251,191,36,0.1)",
-            background: "rgba(5,2,16,0.7)",
-            backdropFilter: "blur(20px)",
-          }}>
-            {/* Aviso de limite atingido dentro do input */}
-            {!premiumAtivo && restantes === 0 ? (
+          <div style={{ padding: "16px 20px 28px", borderTop: "1px solid rgba(251,191,36,0.1)", background: "rgba(5,2,16,0.7)", backdropFilter: "blur(20px)" }}>
+            {!premium && restantes === 0 ? (
               <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
-                <p style={{ color: "rgba(254,243,199,0.4)", fontSize: 13, fontStyle: "italic", marginBottom: 12 }}>
-                  Suas consultas gratuitas foram usadas. ✦
-                </p>
-                <button onClick={() => setMostrarPaywall(true)} style={{
-                  background: "linear-gradient(135deg, #f97316, #fbbf24)",
-                  border: "none", borderRadius: 100,
-                  padding: "14px 32px", color: "#1a0a2e",
-                  fontSize: 14, fontFamily: "'Cinzel',serif",
-                  letterSpacing: 2, fontWeight: 700,
-                  cursor: "pointer",
-                  boxShadow: "0 0 20px rgba(251,191,36,0.4)",
-                }}>✦ Continuar com o Oráculo</button>
+                <p style={{ color: "rgba(254,243,199,0.4)", fontSize: 13, fontStyle: "italic", marginBottom: 12 }}>Suas consultas gratuitas foram usadas. ✦</p>
+                <button onClick={() => setMostrarPaywall(true)} style={{ background: "linear-gradient(135deg, #f97316, #fbbf24)", border: "none", borderRadius: 100, padding: "14px 32px", color: "#1a0a2e", fontSize: 14, fontFamily: "'Cinzel',serif", letterSpacing: 2, fontWeight: 700, cursor: "pointer", boxShadow: "0 0 20px rgba(251,191,36,0.4)" }}>✦ Continuar com o Oráculo</button>
               </div>
             ) : (
-              <div style={{
-                display: "flex", gap: 10, alignItems: "flex-end",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(251,191,36,0.2)",
-                borderRadius: 20, padding: "12px 14px",
-                transition: "border-color .3s",
-              }}>
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
-                  placeholder="Escreva o que está em seu coração..."
-                  rows={1}
-                  style={{
-                    flex: 1, background: "none", border: "none", outline: "none",
-                    color: "#fef3c7", fontSize: 14, lineHeight: 1.6,
-                    fontFamily: "'Lora', Georgia, serif", fontStyle: "italic",
-                    maxHeight: 120, overflowY: "auto",
-                  }}
-                  onInput={e => {
-                    e.target.style.height = "auto";
-                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
-                  }}
-                />
-                <button onClick={iniciarVoz} title={escutando ? "Parar gravação" : "Falar"}
-                  style={{
-                    width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
-                    background: escutando ? "rgba(248,113,113,0.3)" : "rgba(255,255,255,0.06)",
-                    border: escutando ? "1px solid rgba(248,113,113,0.5)" : "1px solid transparent",
-                    color: escutando ? "#f87171" : "rgba(254,243,199,0.4)",
-                    fontSize: 16, cursor: "pointer", transition: "all .25s",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    animation: escutando ? "pulse-gold 1s ease-in-out infinite" : "none",
-                  }}>🎤</button>
-                <button onClick={enviar} disabled={!input.trim() || carregando}
-                  style={{
-                    width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
-                    background: input.trim() && !carregando
-                      ? "linear-gradient(135deg, #f97316, #fbbf24)"
-                      : "rgba(255,255,255,0.06)",
-                    border: "none",
-                    color: input.trim() && !carregando ? "#1a0a2e" : "rgba(254,243,199,0.2)",
-                    fontSize: 16, cursor: input.trim() && !carregando ? "pointer" : "default",
-                    transition: "all .25s", display: "flex", alignItems: "center", justifyContent: "center",
-                    boxShadow: input.trim() && !carregando ? "0 0 16px rgba(251,191,36,0.4)" : "none",
-                  }}>✦</button>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 20, padding: "12px 14px" }}>
+                <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }} placeholder="Escreva o que está em seu coração..." rows={1} style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fef3c7", fontSize: 14, lineHeight: 1.6, fontFamily: "'Lora', Georgia, serif", fontStyle: "italic", maxHeight: 120, overflowY: "auto" }} onInput={e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />
+                <button onClick={iniciarVoz} style={{ width: 38, height: 38, borderRadius: "50%", background: escutando ? "rgba(248,113,113,0.3)" : "rgba(255,255,255,0.06)", border: escutando ? "1px solid rgba(248,113,113,0.5)" : "1px solid transparent", color: escutando ? "#f87171" : "rgba(254,243,199,0.4)", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>🎤</button>
+                <button onClick={enviar} disabled={!input.trim() || carregando} style={{ width: 38, height: 38, borderRadius: "50%", background: input.trim() && !carregando ? "linear-gradient(135deg, #f97316, #fbbf24)" : "rgba(255,255,255,0.06)", border: "none", color: input.trim() && !carregando ? "#1a0a2e" : "rgba(254,243,199,0.2)", fontSize: 16, cursor: input.trim() && !carregando ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}>✦</button>
               </div>
             )}
-            <p style={{
-              color: "rgba(254,243,199,0.2)", fontSize: 10,
-              textAlign: "center", marginTop: 10, fontStyle: "italic",
-            }}>🎤 Toque no microfone para falar · Enter para enviar</p>
+            <p style={{ color: "rgba(254,243,199,0.2)", fontSize: 10, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>🎤 Toque no microfone para falar · Enter para enviar</p>
           </div>
         </div>
       )}
