@@ -450,10 +450,10 @@ export default function App() {
       )}
 
       {/* ── TELA LOGIN ── */}
-      {tela === "login" && !usuario && <TelaLogin />}
+      {tela === "login" && usuario === null && <TelaLogin />}
 
       {/* ── TELA ENTRADA (após login) ── */}
-      {tela === "login" && usuario && (
+      {tela === "login" && usuario !== null && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", minHeight: "100vh", animation: "fadeIn 1.2s ease", position: "relative", zIndex: 1 }}>
           <div style={{ position: "relative", marginBottom: 32, animation: "float 4s ease-in-out infinite" }}>
             <div style={{ width: 120, height: 120, borderRadius: "50%", border: "1px solid rgba(251,191,36,0.2)", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", animation: "rotate-slow 20s linear infinite" }}>
