@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 
 // ── Firebase config ────────────────────────────────────────────────
@@ -19,7 +19,6 @@ const db = getFirestore(firebaseApp);
 // ── Constantes ─────────────────────────────────────────────────────
 const LIMITE_GRATUITO = 10;
 const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/eVqbJ1dFT91TdNY37NbMQ00";
-const SENHA_ACESSO = "meulegado2026";
 
 const OPENING_PHRASES = [
   "O que está pesando no seu coração hoje?",
@@ -190,47 +189,123 @@ function ModalUpgrade({ onFechar, uid }) {
 }
 
 // ── Tela de Login ──────────────────────────────────────────────────
-function TelaLogin({ onLogin }) {
+function TelaLogin() {
+  const [modo, setModo]           = useState("inicio"); // inicio | entrar | cadastrar | recuperar
+  const [email, setEmail]         = useState("");
+  const [senha, setSenha]         = useState("");
   const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState("");
+  const [erro, setErro]           = useState("");
+  const [sucesso, setSucesso]     = useState("");
 
-  async function fazerLogin() {
+  async function loginGoogle() {
     setCarregando(true); setErro("");
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (e) { setErro("Não foi possível fazer login com Google. Tente novamente."); }
+    setCarregando(false);
+  }
+
+  async function loginEmail() {
+    if (!email || !senha) { setErro("Preencha e-mail e senha."); return; }
+    setCarregando(true); setErro("");
+    try {
+      await signInWithEmailAndPassword(auth, email, senha);
     } catch (e) {
-      setErro("Não foi possível fazer login. Tente novamente.");
+      if (e.code === "auth/invalid-credential") setErro("E-mail ou senha incorretos.");
+      else if (e.code === "auth/user-not-found") setErro("Usuário não encontrado.");
+      else setErro("Erro ao entrar. Tente novamente.");
     }
     setCarregando(false);
   }
 
+  async function cadastrarEmail() {
+    if (!email || !senha) { setErro("Preencha e-mail e senha."); return; }
+    if (senha.length < 6) { setErro("A senha deve ter pelo menos 6 caracteres."); return; }
+    setCarregando(true); setErro("");
+    try {
+      await createUserWithEmailAndPassword(auth, email, senha);
+    } catch (e) {
+      if (e.code === "auth/email-already-in-use") setErro("Este e-mail já está cadastrado.");
+      else setErro("Erro ao criar conta. Tente novamente.");
+    }
+    setCarregando(false);
+  }
+
+  async function recuperarSenha() {
+    if (!email) { setErro("Digite seu e-mail."); return; }
+    setCarregando(true); setErro(""); setSucesso("");
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSucesso("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
+    } catch (e) { setErro("Erro ao enviar e-mail. Verifique o endereço digitado."); }
+    setCarregando(false);
+  }
+
+  const inputStyle = { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 14, padding: "13px 18px", color: "#fef3c7", fontSize: 14, fontFamily: "'Lora',Georgia,serif", fontStyle: "italic", outline: "none", letterSpacing: 1 };
+  const btnPrimary = { width: "100%", background: "linear-gradient(135deg,rgba(139,100,20,0.5),rgba(200,168,75,0.3))", border: "1px solid rgba(251,191,36,0.4)", borderRadius: 100, padding: "14px", color: "#fef3c7", fontSize: 14, fontFamily: "'Cinzel',serif", letterSpacing: 2, cursor: "pointer" };
+  const btnLink = { background: "none", border: "none", color: "rgba(251,191,36,0.5)", fontSize: 12, cursor: "pointer", fontFamily: "'Lora',serif", fontStyle: "italic", textDecoration: "underline" };
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", minHeight: "100vh", animation: "fadeIn 1s ease", position: "relative", zIndex: 1 }}>
-      <div style={{ animation: "float 4s ease-in-out infinite", marginBottom: 28 }}>
-        <Flame />
+      <div style={{ animation: "float 4s ease-in-out infinite", marginBottom: 24 }}><Flame /></div>
+      <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 6, color: "rgba(251,191,36,0.5)", textTransform: "uppercase", marginBottom: 8 }}>Legado de Luz</p>
+      <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "clamp(28px,7vw,44px)", fontWeight: 700, color: "#fef3c7", textAlign: "center", lineHeight: 1.2, marginBottom: 6, letterSpacing: 2, textShadow: "0 0 40px rgba(251,191,36,0.3)" }}>O Oráculo</h1>
+      <div style={{ width: 50, height: 1, background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent)", margin: "12px auto 24px" }} />
+
+      <div style={{ width: "100%", maxWidth: 300, display: "flex", flexDirection: "column", gap: 10 }}>
+
+        {/* Google */}
+        <button onClick={loginGoogle} disabled={carregando} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, background: "rgba(255,255,255,0.95)", border: "none", borderRadius: 100, padding: "13px 24px", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#1a1a1a", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          {carregando ? "Entrando..." : "Entrar com Google"}
+        </button>
+
+        {/* Divisor */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" }}>
+          <div style={{ flex: 1, height: 1, background: "rgba(251,191,36,0.15)" }} />
+          <p style={{ color: "rgba(254,243,199,0.25)", fontSize: 11, fontStyle: "italic" }}>ou</p>
+          <div style={{ flex: 1, height: 1, background: "rgba(251,191,36,0.15)" }} />
+        </div>
+
+        {/* Formulário email/senha */}
+        {modo === "recuperar" ? (
+          <>
+            <p style={{ color: "rgba(254,243,199,0.5)", fontSize: 13, textAlign: "center", fontStyle: "italic" }}>Digite seu e-mail para recuperar a senha</p>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Seu e-mail..." style={inputStyle} />
+            <button onClick={recuperarSenha} disabled={carregando} style={btnPrimary}>{carregando ? "Enviando..." : "Enviar recuperação"}</button>
+            {sucesso && <p style={{ color: "#6EE7B7", fontSize: 12, textAlign: "center", fontStyle: "italic" }}>{sucesso}</p>}
+            <button onClick={() => { setModo("entrar"); setErro(""); setSucesso(""); }} style={btnLink}>← Voltar</button>
+          </>
+        ) : (
+          <>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Seu e-mail..." style={inputStyle} />
+            <input type="password" value={senha} onChange={e => setSenha(e.target.value)} placeholder="Sua senha..." style={inputStyle} onKeyDown={e => e.key === "Enter" && (modo === "entrar" ? loginEmail() : cadastrarEmail())} />
+            {modo === "cadastrar" ? (
+              <>
+                <button onClick={cadastrarEmail} disabled={carregando} style={btnPrimary}>{carregando ? "Criando conta..." : "Criar conta"}</button>
+                <button onClick={() => { setModo("entrar"); setErro(""); }} style={btnLink}>Já tenho conta</button>
+              </>
+            ) : (
+              <>
+                <button onClick={loginEmail} disabled={carregando} style={btnPrimary}>{carregando ? "Entrando..." : "Entrar com e-mail"}</button>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <button onClick={() => { setModo("cadastrar"); setErro(""); }} style={btnLink}>Criar conta</button>
+                  <button onClick={() => { setModo("recuperar"); setErro(""); }} style={btnLink}>Esqueci a senha</button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {erro && <p style={{ color: "#f87171", fontSize: 12, textAlign: "center", fontStyle: "italic", margin: 0 }}>{erro}</p>}
       </div>
-      <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 6, color: "rgba(251,191,36,0.5)", textTransform: "uppercase", marginBottom: 10 }}>Legado de Luz</p>
-      <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "clamp(30px,7vw,46px)", fontWeight: 700, color: "#fef3c7", textAlign: "center", lineHeight: 1.2, marginBottom: 8, letterSpacing: 2, textShadow: "0 0 40px rgba(251,191,36,0.3)" }}>O Oráculo</h1>
-      <div style={{ width: 50, height: 1, background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent)", margin: "14px auto 28px" }} />
-      <p style={{ color: "rgba(254,243,199,0.5)", fontSize: 14, textAlign: "center", lineHeight: 1.8, maxWidth: 260, marginBottom: 36, fontStyle: "italic" }}>
-        Entre com sua conta Google para acessar o Oráculo e salvar sua jornada.
-      </p>
-      <button onClick={fazerLogin} disabled={carregando} style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.95)", border: "none", borderRadius: 100, padding: "14px 28px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#1a1a1a", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", transition: "all .3s" }}
-        onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"}
-        onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
-        <svg width="20" height="20" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-        </svg>
-        {carregando ? "Entrando..." : "Entrar com Google"}
-      </button>
-      {erro && <p style={{ color: "#f87171", fontSize: 12, marginTop: 16, fontStyle: "italic" }}>{erro}</p>}
-      <p style={{ color: "rgba(254,243,199,0.15)", fontSize: 11, marginTop: 40, fontStyle: "italic", textAlign: "center" }}>
-        Seus dados são privados e protegidos.
-      </p>
+
+      <p style={{ color: "rgba(254,243,199,0.15)", fontSize: 10, marginTop: 32, fontStyle: "italic", textAlign: "center" }}>Seus dados são privados e protegidos.</p>
     </div>
   );
 }
@@ -239,9 +314,7 @@ const MUSICA_URL = "/hirohasaimoto-gentle-as-forever-484820.mp3";
 
 // ── App principal ──────────────────────────────────────────────────
 export default function App() {
-  const [tela, setTela]               = useState("senha");
-  const [senhaInput, setSenhaInput]   = useState("");
-  const [senhaErro, setSenhaErro]     = useState(false);
+  const [tela, setTela]               = useState("login");
   const [usuario, setUsuario]         = useState(null);
   const [dadosUsuario, setDadosUsuario] = useState(null);
   const [carregandoAuth, setCarregandoAuth] = useState(true);
@@ -340,10 +413,7 @@ export default function App() {
     recognitionRef.current = rec; rec.start();
   }
 
-  function verificarSenha() {
-    if (senhaInput.trim().toLowerCase() === SENHA_ACESSO) { setTela("login"); setSenhaErro(false); }
-    else { setSenhaErro(true); setSenhaInput(""); }
-  }
+
 
   function entrar() {
     setTela("oraculo");
@@ -432,22 +502,7 @@ export default function App() {
 
       {mostrarPaywall && <ModalUpgrade uid={usuario?.uid} onFechar={() => setMostrarPaywall(false)} />}
 
-      {/* ── TELA SENHA ── */}
-      {tela === "senha" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 28px", minHeight: "100vh", position: "relative", zIndex: 1, animation: "fadeIn 1s ease" }}>
-          <div style={{ animation: "float 4s ease-in-out infinite", marginBottom: 28 }}><Flame /></div>
-          <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 6, color: "rgba(251,191,36,0.5)", textTransform: "uppercase", margin: "0 0 10px" }}>Legado de Luz</p>
-          <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "clamp(30px,7vw,46px)", fontWeight: 700, color: "#fef3c7", textAlign: "center", lineHeight: 1.2, marginBottom: 8, letterSpacing: 2, textShadow: "0 0 40px rgba(251,191,36,0.3)" }}>O Oráculo</h1>
-          <div style={{ width: 50, height: 1, background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent)", margin: "14px auto 28px" }} />
-          <p style={{ color: "rgba(254,243,199,0.5)", fontSize: 14, textAlign: "center", lineHeight: 1.8, maxWidth: 260, marginBottom: 32, fontStyle: "italic" }}>Este espaço é reservado.<br />Digite a palavra de acesso para entrar.</p>
-          <div style={{ width: "100%", maxWidth: 280, display: "flex", flexDirection: "column", gap: 12 }}>
-            <input type="password" value={senhaInput} onChange={e => { setSenhaInput(e.target.value); setSenhaErro(false); }} onKeyDown={e => e.key === "Enter" && verificarSenha()} placeholder="Palavra de acesso..." style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${senhaErro ? "rgba(248,113,113,0.5)" : "rgba(251,191,36,0.25)"}`, borderRadius: 14, padding: "14px 18px", color: "#fef3c7", fontSize: 15, fontFamily: "'Lora',Georgia,serif", fontStyle: "italic", outline: "none", textAlign: "center", letterSpacing: 3 }} />
-            {senhaErro && <p style={{ color: "#f87171", fontSize: 12, textAlign: "center", fontStyle: "italic", margin: 0, animation: "fadeUp .3s ease" }}>Palavra incorreta. Tente novamente.</p>}
-            <button onClick={verificarSenha} style={{ background: "linear-gradient(135deg,rgba(139,100,20,0.4),rgba(200,168,75,0.2))", border: "1px solid rgba(251,191,36,0.4)", borderRadius: 100, padding: "14px 0", color: "#fef3c7", fontSize: 14, fontFamily: "'Cinzel',serif", letterSpacing: 3, cursor: "pointer" }}>Entrar</button>
-          </div>
-          <p style={{ color: "rgba(254,243,199,0.15)", fontSize: 11, marginTop: 40, fontStyle: "italic", textAlign: "center" }}>Acesso restrito · Fase de testes</p>
-        </div>
-      )}
+
 
       {/* ── TELA LOGIN ── */}
       {tela === "login" && usuario === null && <TelaLogin />}
