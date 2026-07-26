@@ -94,7 +94,7 @@ function consultasRestantes() {
 // Crie em: dashboard.stripe.com > Payment Links > + Novo link
 // Preço: R$ 9,90 recorrente mensal
 // Após pagamento, redirecione para: SEU_SITE/?premium=true
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_aFa28t3GWb6e1Kc4BQ8b500";
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/eVqbJ1dFT91TdNY37NbMQ00";
 
 // ── Chamada à API do Oráculo ───────────────────────────────────────
 async function consultarOraculo(mensagens) {
