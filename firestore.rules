@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// ── Regras de Segurança do Firestore — Oráculo de Luz ───────────────
+// Objetivo: o próprio usuário pode ler seus dados e atualizar coisas do
+// dia a dia (quantas consultas já usou, seu histórico de conversas), mas
+// NUNCA pode conceder premium ou créditos avulsos a si mesmo — esses
+// campos só mudam através do webhook do Stripe (que usa o Admin SDK e
+// ignora estas regras, porque roda do lado do servidor).
+//
+// Depois de editar este arquivo, cole o conteúdo no console do Firebase:
+// Firestore Database → Regras → colar → Publicar.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /usuarios/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Criação do documento (primeiro login): só com os valores iniciais "zerados".
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.premium == false
+        && request.resource.data.creditosAvulsos == 0;
+
+      // Atualização: o usuário pode mexer em tudo, MENOS:
+      // - "premium" (não pode mudar, nem virar true nem false sozinho)
+      // - "creditosAvulsos" (só pode diminuir — nunca aumentar)
+      // - "stripeCustomerId" / "stripeSubscriptionId" (só o servidor grava)
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.premium == resource.data.premium
+        && request.resource.data.creditosAvulsos <= resource.data.creditosAvulsos
+        && request.resource.data.get('stripeCustomerId', null) == resource.data.get('stripeCustomerId', null)
+        && request.resource.data.get('stripeSubscriptionId', null) == resource.data.get('stripeSubscriptionId', null);
+    }
+  }
+}
