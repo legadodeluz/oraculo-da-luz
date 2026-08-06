@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, onSnapshot } from "firebase/firestore";
 
 // ── Firebase config ────────────────────────────────────────────────
 const firebaseConfig = {
@@ -18,7 +18,13 @@ const db = getFirestore(firebaseApp);
 
 // ── Constantes ─────────────────────────────────────────────────────
 const LIMITE_GRATUITO = 10;
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/eVqbJ1dFT91TdNY37NbMQ00";
+// Isto é só o número mostrado na tela. Quem realmente credita as consultas é o
+// webhook (api/stripe-webhook.js) — se mudar aqui, mude lá também.
+const CREDITOS_PACOTE_AVULSO = 30;
+const STRIPE_PAYMENT_LINK_ASSINATURA = "https://buy.stripe.com/eVqbJ1dFT91TdNY37NbMQ00";
+// TODO(Hélio): troque pelo link do produto "Pacote de 30 consultas" (R$19,90, pagamento único)
+// depois de criá-lo no painel do Stripe.
+const STRIPE_PAYMENT_LINK_PACOTE = "https://buy.stripe.com/SEU_LINK_DO_PACOTE_AQUI";
 
 const OPENING_PHRASES = [
   "O que está pesando no seu coração hoje?",
@@ -60,11 +66,15 @@ Se alguém fizer perguntas fora do propósito espiritual/emocional, redirecione 
 Nunca se irrite, nunca quebre o personagem. A serenidade é sua maior força.`;
 
 // ── Firestore helpers ──────────────────────────────────────────────
+// Importante: premium, creditosAvulsos, stripeCustomerId e stripeSubscriptionId
+// só são concedidos pelo webhook do Stripe (api/stripe-webhook.js), que roda no
+// servidor e confirma o pagamento de verdade. O app aqui só LÊ esses campos e,
+// no máximo, consome (diminui) créditos avulsos — nunca concede acesso sozinho.
 async function getUserData(uid) {
   const ref = doc(db, "usuarios", uid);
   const snap = await getDoc(ref);
   if (snap.exists()) return snap.data();
-  const novo = { consultasUsadas: 0, premium: false, criadoEm: serverTimestamp(), historico: [] };
+  const novo = { consultasUsadas: 0, premium: false, creditosAvulsos: 0, criadoEm: serverTimestamp(), historico: [] };
   await setDoc(ref, novo);
   return novo;
 }
@@ -77,8 +87,13 @@ async function incrementarConsultaDB(uid) {
   return atual + 1;
 }
 
-async function ativarPremiumDB(uid) {
-  await updateDoc(doc(db, "usuarios", uid), { premium: true });
+async function consumirCreditoAvulsoDB(uid) {
+  const ref = doc(db, "usuarios", uid);
+  const snap = await getDoc(ref);
+  const atual = snap.data()?.creditosAvulsos || 0;
+  if (atual <= 0) return 0;
+  await updateDoc(ref, { creditosAvulsos: atual - 1 });
+  return atual - 1;
 }
 
 async function salvarMensagemDB(uid, role, content) {
@@ -155,33 +170,52 @@ function Mensagem({ msg, index }) {
 
 // ── Modal Upgrade ──────────────────────────────────────────────────
 function ModalUpgrade({ onFechar, uid }) {
-  function irParaStripe() {
-    const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${uid}&redirect_url=${encodeURIComponent(window.location.origin + "/?premium=true")}`;
+  // O redirect_url só sinaliza pro app mostrar "estamos confirmando seu pagamento" —
+  // quem realmente libera o acesso é o webhook do Stripe, do lado do servidor.
+  const redirectUrl = encodeURIComponent(window.location.origin + "/?pago=true");
+
+  function irParaAssinatura() {
+    const url = `${STRIPE_PAYMENT_LINK_ASSINATURA}?client_reference_id=${uid}&redirect_url=${redirectUrl}`;
     window.open(url, "_blank");
   }
+
+  function irParaPacote() {
+    const url = `${STRIPE_PAYMENT_LINK_PACOTE}?client_reference_id=${uid}&redirect_url=${redirectUrl}`;
+    window.open(url, "_blank");
+  }
+
+  const cardStyle = { background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 16, padding: "18px 16px", marginBottom: 14, textAlign: "left" };
+  const btnStyle = { width: "100%", background: "linear-gradient(135deg, #f97316, #fbbf24)", border: "none", borderRadius: 100, padding: "13px", color: "#1a0a2e", fontSize: 13.5, fontFamily: "'Cinzel',serif", letterSpacing: 1.5, fontWeight: 700, cursor: "pointer", boxShadow: "0 0 20px rgba(251,191,36,0.35)", marginTop: 12 };
+
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(5,2,16,0.92)", backdropFilter: "blur(16px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "fadeIn 0.3s ease" }}>
-      <div style={{ background: "linear-gradient(145deg, rgba(20,10,40,0.98), rgba(10,5,25,0.98))", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 24, padding: "36px 28px", maxWidth: 360, width: "100%", textAlign: "center", boxShadow: "0 0 60px rgba(251,191,36,0.08)", animation: "fadeUp 0.4s ease" }}>
-        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,191,36,0.2), rgba(249,115,22,0.1))", border: "1px solid rgba(251,191,36,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 26, animation: "pulse-gold 3s ease-in-out infinite" }}>🕯️</div>
-        <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 5, color: "rgba(251,191,36,0.6)", textTransform: "uppercase", marginBottom: 10 }}>Legado de Luz</p>
-        <h2 style={{ fontFamily: "'Cinzel',serif", fontSize: 22, color: "#fef3c7", letterSpacing: 1, marginBottom: 12, lineHeight: 1.3 }}>Sua jornada continua</h2>
-        <div style={{ width: 40, height: 1, background: "linear-gradient(90deg,transparent,rgba(251,191,36,0.4),transparent)", margin: "0 auto 20px" }} />
-        <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 14, lineHeight: 1.8, fontStyle: "italic", marginBottom: 24 }}>
-          Você usou suas <strong style={{ color: "#fbbf24" }}>10 consultas gratuitas</strong>.<br />Para continuar, ative o acesso completo.
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(5,2,16,0.92)", backdropFilter: "blur(16px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "fadeIn 0.3s ease", overflowY: "auto" }}>
+      <div style={{ background: "linear-gradient(145deg, rgba(20,10,40,0.98), rgba(10,5,25,0.98))", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 24, padding: "32px 26px", maxWidth: 380, width: "100%", textAlign: "center", boxShadow: "0 0 60px rgba(251,191,36,0.08)", animation: "fadeUp 0.4s ease", margin: "auto" }}>
+        <div style={{ width: 60, height: 60, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,191,36,0.2), rgba(249,115,22,0.1))", border: "1px solid rgba(251,191,36,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px", fontSize: 24, animation: "pulse-gold 3s ease-in-out infinite" }}>🕯️</div>
+        <p style={{ fontFamily: "'Cinzel',serif", fontSize: 11, letterSpacing: 5, color: "rgba(251,191,36,0.6)", textTransform: "uppercase", marginBottom: 8 }}>Legado de Luz</p>
+        <h2 style={{ fontFamily: "'Cinzel',serif", fontSize: 20, color: "#fef3c7", letterSpacing: 1, marginBottom: 10, lineHeight: 1.3 }}>Sua jornada continua</h2>
+        <p style={{ color: "rgba(254,243,199,0.55)", fontSize: 13, lineHeight: 1.7, fontStyle: "italic", marginBottom: 22 }}>
+          Escolha a forma que combina melhor com você.
         </p>
-        <div style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.12)", borderRadius: 14, padding: "16px", marginBottom: 24, textAlign: "left" }}>
-          {["✦ Consultas ilimitadas com o Oráculo", "✦ Histórico das suas conversas salvo", "✦ Voz e música ambiente incluídas", "✦ Cancele quando quiser"].map((item, i) => (
-            <p key={i} style={{ color: "rgba(254,243,199,0.7)", fontSize: 13, lineHeight: 1.9, margin: 0, fontStyle: "italic" }}>{item}</p>
-          ))}
+
+        {/* Assinatura */}
+        <div style={cardStyle}>
+          <p style={{ fontFamily: "'Cinzel',serif", fontSize: 13, color: "#fbbf24", letterSpacing: 1, marginBottom: 6 }}>✦ Acesso Ilimitado</p>
+          <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 12, lineHeight: 1.7, fontStyle: "italic", marginBottom: 8 }}>Consultas sem limite, todo mês. Cancele quando quiser.</p>
+          <span style={{ fontFamily: "'Cinzel',serif", fontSize: 26, fontWeight: 700, color: "#fef3c7" }}>R$ 9,90</span>
+          <span style={{ color: "rgba(254,243,199,0.4)", fontSize: 12, marginLeft: 5, fontStyle: "italic" }}>/mês</span>
+          <button onClick={irParaAssinatura} style={btnStyle}>✦ Assinar Acesso Ilimitado</button>
         </div>
-        <div style={{ marginBottom: 20 }}>
-          <span style={{ fontFamily: "'Cinzel',serif", fontSize: 32, fontWeight: 700, color: "#fef3c7" }}>R$ 9,90</span>
-          <span style={{ color: "rgba(254,243,199,0.4)", fontSize: 13, marginLeft: 6, fontStyle: "italic" }}>/mês</span>
+
+        {/* Pacote avulso */}
+        <div style={cardStyle}>
+          <p style={{ fontFamily: "'Cinzel',serif", fontSize: 13, color: "#fbbf24", letterSpacing: 1, marginBottom: 6 }}>✦ Pacote de {CREDITOS_PACOTE_AVULSO} Consultas</p>
+          <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 12, lineHeight: 1.7, fontStyle: "italic", marginBottom: 8 }}>Uma consulta para cada dia do mês. Sem renovação automática.</p>
+          <span style={{ fontFamily: "'Cinzel',serif", fontSize: 26, fontWeight: 700, color: "#fef3c7" }}>R$ 19,90</span>
+          <span style={{ color: "rgba(254,243,199,0.4)", fontSize: 12, marginLeft: 5, fontStyle: "italic" }}>pagamento único</span>
+          <button onClick={irParaPacote} style={btnStyle}>✦ Comprar Pacote de {CREDITOS_PACOTE_AVULSO}</button>
         </div>
-        <button onClick={irParaStripe} style={{ width: "100%", background: "linear-gradient(135deg, #f97316, #fbbf24)", border: "none", borderRadius: 100, padding: "16px", color: "#1a0a2e", fontSize: 15, fontFamily: "'Cinzel',serif", letterSpacing: 2, fontWeight: 700, cursor: "pointer", boxShadow: "0 0 24px rgba(251,191,36,0.4)", marginBottom: 12 }}>
-          ✦ Ativar Acesso Completo
-        </button>
-        <p style={{ color: "rgba(254,243,199,0.2)", fontSize: 10, fontStyle: "italic", marginBottom: 16 }}>Pagamento seguro via Stripe · Cancele a qualquer momento</p>
+
+        <p style={{ color: "rgba(254,243,199,0.2)", fontSize: 10, fontStyle: "italic", margin: "8px 0 16px" }}>Pagamento seguro via Stripe</p>
         {onFechar && <button onClick={onFechar} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.25)", fontSize: 12, cursor: "pointer", fontFamily: "'Lora',serif", fontStyle: "italic" }}>Voltar</button>}
       </div>
     </div>
@@ -333,6 +367,7 @@ export default function App() {
   const [tom, setTom]                       = useState(0.92);
   const [mostrarPaywall, setMostrarPaywall] = useState(false);
   const [mostrarHistorico, setMostrarHistorico] = useState(false);
+  const [confirmandoPagamento, setConfirmandoPagamento] = useState(false);
 
   const bottomRef      = useRef(null);
   const inputRef       = useRef(null);
@@ -340,23 +375,38 @@ export default function App() {
   const recognitionRef = useRef(null);
 
   // ── Auth listener ──────────────────────────────────────────────
+  // Quem concede premium/créditos é sempre o webhook do Stripe (servidor).
+  // Aqui o app só escuta o documento do usuário em tempo real (onSnapshot),
+  // então assim que o webhook gravar a confirmação, a tela atualiza sozinha.
   useEffect(() => {
+    let unsubDoc = null;
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       setUsuario(user);
+      if (unsubDoc) { unsubDoc(); unsubDoc = null; }
+
       if (user) {
-        const dados = await getUserData(user.uid);
-        setDadosUsuario(dados);
-        // Detecta retorno do Stripe
+        await getUserData(user.uid); // garante que o doc existe (cria se for a primeira vez)
+        const ref = doc(db, "usuarios", user.uid);
+        unsubDoc = onSnapshot(ref, (snap) => {
+          if (snap.exists()) setDadosUsuario(snap.data());
+        });
+
+        // Detecta retorno do Stripe — só mostra uma mensagem de "confirmando",
+        // não ativa nada aqui. Quem libera de fato é o webhook.
         const params = new URLSearchParams(window.location.search);
-        if (params.get("premium") === "true") {
-          await ativarPremiumDB(user.uid);
-          setDadosUsuario(d => ({ ...d, premium: true }));
+        if (params.get("pago") === "true") {
+          setConfirmandoPagamento(true);
           window.history.replaceState({}, "", window.location.pathname);
+          setTimeout(() => setConfirmandoPagamento(false), 8000);
         }
+      } else {
+        setDadosUsuario(null);
       }
       setCarregandoAuth(false);
     });
-    return unsub;
+
+    return () => { unsub(); if (unsubDoc) unsubDoc(); };
   }, []);
 
   useEffect(() => {
@@ -446,7 +496,9 @@ export default function App() {
     if (!input.trim() || carregando || !usuario) return;
     const premium = dadosUsuario?.premium || false;
     const consultasUsadas = dadosUsuario?.consultasUsadas || 0;
-    if (!premium && consultasUsadas >= LIMITE_GRATUITO) { setMostrarPaywall(true); return; }
+    const creditosAvulsos = dadosUsuario?.creditosAvulsos || 0;
+    const restantesGratis = Math.max(0, LIMITE_GRATUITO - consultasUsadas);
+    if (!premium && restantesGratis <= 0 && creditosAvulsos <= 0) { setMostrarPaywall(true); return; }
     const texto = input.trim();
     setInput("");
     if (detectarCrise(texto)) setMostrarCVV(true);
@@ -458,8 +510,14 @@ export default function App() {
       setMensagens([...novas, { role: "assistant", content: resposta }]);
       falarTexto(resposta);
       if (!premium) {
-        const novoTotal = await incrementarConsultaDB(usuario.uid);
-        setDadosUsuario(d => ({ ...d, consultasUsadas: novoTotal }));
+        // Consome primeiro as consultas gratuitas; só depois os créditos avulsos comprados.
+        if (restantesGratis > 0) {
+          const novoTotal = await incrementarConsultaDB(usuario.uid);
+          setDadosUsuario(d => ({ ...d, consultasUsadas: novoTotal }));
+        } else if (creditosAvulsos > 0) {
+          const novoTotal = await consumirCreditoAvulsoDB(usuario.uid);
+          setDadosUsuario(d => ({ ...d, creditosAvulsos: novoTotal }));
+        }
       }
       await salvarMensagemDB(usuario.uid, "user", texto);
       await salvarMensagemDB(usuario.uid, "assistant", resposta);
@@ -471,7 +529,9 @@ export default function App() {
 
   const premium = dadosUsuario?.premium || false;
   const consultasUsadas = dadosUsuario?.consultasUsadas || 0;
-  const restantes = premium ? null : Math.max(0, LIMITE_GRATUITO - consultasUsadas);
+  const creditosAvulsos = dadosUsuario?.creditosAvulsos || 0;
+  const restantesGratis = Math.max(0, LIMITE_GRATUITO - consultasUsadas);
+  const restantes = premium ? null : restantesGratis + creditosAvulsos;
 
   if (carregandoAuth) return (
     <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse at 20% 20%, #1a0a2e 0%, #050210 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -502,6 +562,11 @@ export default function App() {
 
       {mostrarPaywall && <ModalUpgrade uid={usuario?.uid} onFechar={() => setMostrarPaywall(false)} />}
 
+      {confirmandoPagamento && (
+        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 1200, background: "rgba(10,5,25,0.97)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: 100, padding: "10px 20px", boxShadow: "0 4px 24px rgba(0,0,0,0.4)", animation: "fadeUp 0.4s ease" }}>
+          <p style={{ color: "#fbbf24", fontSize: 12.5, fontStyle: "italic", margin: 0 }}>✦ Confirmando seu pagamento com o Stripe... isso pode levar alguns segundos.</p>
+        </div>
+      )}
 
 
       {/* ── TELA LOGIN ── */}
