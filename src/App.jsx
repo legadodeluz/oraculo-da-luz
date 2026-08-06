@@ -24,7 +24,7 @@ const CREDITOS_PACOTE_AVULSO = 30;
 const STRIPE_PAYMENT_LINK_ASSINATURA = "https://buy.stripe.com/eVqbJ1dFT91TdNY37NbMQ00";
 // TODO(Hélio): troque pelo link do produto "Pacote de 30 consultas" (R$19,90, pagamento único)
 // depois de criá-lo no painel do Stripe.
-const STRIPE_PAYMENT_LINK_PACOTE = "https://buy.stripe.com/SEU_LINK_DO_PACOTE_AQUI";
+const STRIPE_PAYMENT_LINK_PACOTE = "https://buy.stripe.com/9B6cN545j3HzdNY37NbMQ01";
 
 const OPENING_PHRASES = [
   "O que está pesando no seu coração hoje?",
