@@ -8,11 +8,18 @@
 //   FIREBASE_PROJECT_ID
 //   FIREBASE_CLIENT_EMAIL
 //   FIREBASE_PRIVATE_KEY   (cole com as quebras de linha como "\n")
+//
+// Nota: a partir da versão 14 do pacote "firebase-admin", a API mudou para
+// o formato modular (initializeApp/cert/getApps importados de
+// "firebase-admin/app", em vez do antigo "admin.initializeApp()" etc.).
+// Usamos aqui o formato novo.
 
-import admin from "firebase-admin";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 function inicializar() {
-  if (admin.apps.length > 0) return admin.apps[0];
+  const existentes = getApps();
+  if (existentes.length > 0) return existentes[0];
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -24,14 +31,12 @@ function inicializar() {
     );
   }
 
-  return admin.initializeApp({
-    credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+  return initializeApp({
+    credential: cert({ projectId, clientEmail, privateKey }),
   });
 }
 
 export function getFirestoreAdmin() {
   inicializar();
-  return admin.firestore();
+  return getFirestore();
 }
-
-export { admin };
