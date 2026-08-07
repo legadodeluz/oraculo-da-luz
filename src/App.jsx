@@ -372,11 +372,14 @@ export default function App() {
   const [mostrarPaywall, setMostrarPaywall] = useState(false);
   const [mostrarHistorico, setMostrarHistorico] = useState(false);
   const [confirmandoPagamento, setConfirmandoPagamento] = useState(false);
+  const [mostrarBotaoTopo, setMostrarBotaoTopo]   = useState(false);
+  const [mostrarBotaoFundo, setMostrarBotaoFundo] = useState(false);
 
   const bottomRef      = useRef(null);
   const inputRef       = useRef(null);
   const audioRef       = useRef(null);
   const recognitionRef = useRef(null);
+  const mensagensRef   = useRef(null);
 
   // ── Auth listener ──────────────────────────────────────────────
   // Quem concede premium/créditos é sempre o webhook do Stripe (servidor).
@@ -432,7 +435,28 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [mensagens, carregando]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const t = setTimeout(atualizarBotoesDeScroll, 400); // dá tempo do scroll suave terminar antes de checar a posição
+    return () => clearTimeout(t);
+  }, [mensagens, carregando]);
+
+  // Mostra/esconde os botões flutuantes de "ir para o topo" e "ir para o fim"
+  // com base em quanto falta rolar em cada direção dentro da conversa.
+  function atualizarBotoesDeScroll() {
+    const el = mensagensRef.current;
+    if (!el) return;
+    setMostrarBotaoTopo(el.scrollTop > 200);
+    setMostrarBotaoFundo(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
+  }
+
+  function irParaTopo() {
+    mensagensRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function irParaFundo() {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
 
   function abaixarMusica() { if (audioRef.current && musicaAtiva) audioRef.current.volume = 0.06; }
   function subirMusica() { if (audioRef.current && musicaAtiva) audioRef.current.volume = 0.25; }
@@ -683,7 +707,7 @@ export default function App() {
           )}
 
           {/* Mensagens */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column" }}>
+          <div ref={mensagensRef} onScroll={atualizarBotoesDeScroll} style={{ flex: 1, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column" }}>
             {mensagens.length === 0 && (
               <div style={{ textAlign: "center", padding: "40px 20px", animation: "fadeUp 0.8s ease 0.2s both" }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,191,36,0.2), transparent)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 24, animation: "pulse-gold 3s ease-in-out infinite" }}>✦</div>
@@ -719,6 +743,12 @@ export default function App() {
               </div>
             )}
             <div ref={bottomRef} />
+          </div>
+
+          {/* Atalhos flutuantes: ir para o topo / ir para o fim da conversa */}
+          <div style={{ position: "absolute", right: 14, bottom: 96, display: "flex", flexDirection: "column", gap: 8, zIndex: 20 }}>
+            <button onClick={irParaTopo} title="Ir para o topo" aria-label="Ir para o topo da conversa" style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(10,5,25,0.85)", border: "1px solid rgba(251,191,36,0.25)", color: "rgba(254,243,199,0.7)", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(10px)", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", opacity: mostrarBotaoTopo ? 1 : 0, pointerEvents: mostrarBotaoTopo ? "auto" : "none", transition: "opacity 0.25s ease" }}>↑</button>
+            <button onClick={irParaFundo} title="Ir para o fim" aria-label="Ir para o fim da conversa" style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(10,5,25,0.85)", border: "1px solid rgba(251,191,36,0.25)", color: "rgba(254,243,199,0.7)", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(10px)", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", opacity: mostrarBotaoFundo ? 1 : 0, pointerEvents: mostrarBotaoFundo ? "auto" : "none", transition: "opacity 0.25s ease" }}>↓</button>
           </div>
 
           {/* Input */}
