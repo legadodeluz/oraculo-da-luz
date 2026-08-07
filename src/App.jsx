@@ -567,6 +567,19 @@ export default function App() {
   const restantesGratis = Math.max(0, LIMITE_GRATUITO - consultasUsadas);
   const restantes = premium ? null : restantesGratis + creditosAvulsos;
 
+  // Só chama de "gratuita" quando for mesmo gratuita — se tiver créditos do
+  // pacote comprado misturados (ou só eles), o texto reflete isso.
+  function textoConsultasRestantes() {
+    const s = restantes !== 1 ? "s" : "";
+    if (creditosAvulsos > 0 && restantesGratis > 0) {
+      return `✦ ${restantes} consulta${s} restante${s} (${restantesGratis} gratuita${restantesGratis !== 1 ? "s" : ""} + ${creditosAvulsos} do pacote)`;
+    }
+    if (creditosAvulsos > 0) {
+      return `✦ ${restantes} consulta${s} restante${s} (do seu pacote)`;
+    }
+    return `✦ ${restantes} consulta${s} gratuita${s} restante${s}`;
+  }
+
   if (carregandoAuth) return (
     <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse at 20% 20%, #1a0a2e 0%, #050210 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <p style={{ color: "rgba(251,191,36,0.5)", fontFamily: "'Cinzel',serif", letterSpacing: 3, fontSize: 14 }}>✦ Carregando ✦</p>
@@ -627,7 +640,7 @@ export default function App() {
 
           {!premium ? (
             <p style={{ color: "rgba(251,191,36,0.45)", fontSize: 12, textAlign: "center", fontStyle: "italic", marginBottom: 24 }}>
-              ✦ {restantes} consulta{restantes !== 1 ? "s" : ""} gratuita{restantes !== 1 ? "s" : ""} restante{restantes !== 1 ? "s" : ""}
+              {textoConsultasRestantes()}
             </p>
           ) : (
             <p style={{ color: "rgba(110,231,183,0.5)", fontSize: 12, textAlign: "center", fontStyle: "italic", marginBottom: 24 }}>✦ Acesso completo ativo</p>
