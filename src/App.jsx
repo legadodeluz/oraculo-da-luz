@@ -674,7 +674,7 @@ export default function App() {
 
       {/* ── TELA ORÁCULO ── */}
       {tela === "oraculo" && usuario && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", width: "100%", maxWidth: 600, minHeight: "100vh", position: "relative", zIndex: 1, animation: "fadeIn 0.8s ease" }}>
+        <div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 600, height: "100vh", overflow: "hidden", position: "relative", zIndex: 1, animation: "fadeIn 0.8s ease" }}>
           {/* Header */}
           <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid rgba(251,191,36,0.1)", backdropFilter: "blur(20px)", background: "rgba(5,2,16,0.5)", display: "flex", alignItems: "center", gap: 14, position: "sticky", top: 0, zIndex: 10 }}>
             <button onClick={() => { setTela("login"); setMensagens([]); setMostrarCVV(false); window.speechSynthesis?.cancel(); }} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.4)", fontSize: 20, cursor: "pointer", padding: "4px 8px", borderRadius: 8 }}>←</button>
@@ -707,7 +707,7 @@ export default function App() {
           )}
 
           {/* Mensagens */}
-          <div ref={mensagensRef} onScroll={atualizarBotoesDeScroll} style={{ flex: 1, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column" }}>
+          <div ref={mensagensRef} onScroll={atualizarBotoesDeScroll} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column" }}>
             {mensagens.length === 0 && (
               <div style={{ textAlign: "center", padding: "40px 20px", animation: "fadeUp 0.8s ease 0.2s both" }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,191,36,0.2), transparent)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 24, animation: "pulse-gold 3s ease-in-out infinite" }}>✦</div>
