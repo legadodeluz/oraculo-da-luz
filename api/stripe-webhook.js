@@ -12,13 +12,34 @@
 //   STRIPE_SECRET_KEY       (chave secreta da sua conta Stripe)
 //   STRIPE_WEBHOOK_SECRET   (gerada ao cadastrar o endpoint do webhook no Stripe)
 //   + as variáveis do Firebase Admin (ver api/_firebaseAdmin.js)
+//
+// Usamos aqui o formato "clássico" de function do Vercel (req, res), com o
+// parser de corpo desligado — é o jeito oficialmente recomendado pelo Stripe
+// para funcionar em Vercel, e evita depender do formato mais novo baseado em
+// Request/Response da Web, que se mostrou instável em produção.
 
 import Stripe from "stripe";
-import { getFirestoreAdmin, admin } from "./_firebaseAdmin.js";
+import { FieldValue } from "firebase-admin/firestore";
+import { getFirestoreAdmin } from "./_firebaseAdmin.js";
+
+export const config = {
+  api: {
+    bodyParser: false, // precisamos do corpo BRUTO (sem parsear) para validar a assinatura do Stripe
+  },
+};
 
 const CREDITOS_PACOTE_AVULSO = 30;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+function lerCorpoBruto(req) {
+  return new Promise((resolve, reject) => {
+    const partes = [];
+    req.on("data", (parte) => partes.push(parte));
+    req.on("end", () => resolve(Buffer.concat(partes)));
+    req.on("error", reject);
+  });
+}
 
 async function revogarPremiumPorCustomerId(db, customerId) {
   if (!customerId) return;
@@ -35,87 +56,84 @@ async function revogarPremiumPorCustomerId(db, customerId) {
   await snap.docs[0].ref.set({ premium: false }, { merge: true });
 }
 
-export default {
-  async fetch(request) {
-    if (request.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
-    }
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
 
-    // Precisamos do corpo BRUTO (sem parsear) para validar a assinatura do Stripe.
-    const rawBody = await request.text();
-    const assinatura = request.headers.get("stripe-signature");
+  const rawBody = await lerCorpoBruto(req);
+  const assinatura = req.headers["stripe-signature"];
 
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        rawBody,
-        assinatura,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error("[stripe-webhook] Assinatura inválida:", err.message);
-      return new Response(`Webhook Error: ${err.message}`, { status: 400 });
-    }
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      assinatura,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    console.error("[stripe-webhook] Assinatura inválida:", err.message);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+    return;
+  }
 
-    const db = getFirestoreAdmin();
+  const db = getFirestoreAdmin();
 
-    try {
-      switch (event.type) {
-        case "checkout.session.completed": {
-          const session = event.data.object;
-          const uid = session.client_reference_id;
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        const uid = session.client_reference_id;
 
-          if (!uid) {
-            console.warn("[stripe-webhook] checkout.session.completed sem client_reference_id — ignorado.");
-            break;
-          }
-
-          const userRef = db.collection("usuarios").doc(uid);
-
-          if (session.mode === "subscription") {
-            await userRef.set(
-              {
-                premium: true,
-                stripeCustomerId: session.customer || null,
-                stripeSubscriptionId: session.subscription || null,
-              },
-              { merge: true }
-            );
-          } else if (session.mode === "payment") {
-            await userRef.set(
-              { creditosAvulsos: admin.firestore.FieldValue.increment(CREDITOS_PACOTE_AVULSO) },
-              { merge: true }
-            );
-          }
+        if (!uid) {
+          console.warn("[stripe-webhook] checkout.session.completed sem client_reference_id — ignorado.");
           break;
         }
 
-        case "customer.subscription.deleted": {
-          const subscription = event.data.object;
-          await revogarPremiumPorCustomerId(db, subscription.customer);
-          break;
-        }
+        const userRef = db.collection("usuarios").doc(uid);
 
-        case "customer.subscription.updated": {
-          const subscription = event.data.object;
-          if (subscription.status === "canceled" || subscription.status === "unpaid") {
-            await revogarPremiumPorCustomerId(db, subscription.customer);
-          }
-          break;
+        if (session.mode === "subscription") {
+          await userRef.set(
+            {
+              premium: true,
+              stripeCustomerId: session.customer || null,
+              stripeSubscriptionId: session.subscription || null,
+            },
+            { merge: true }
+          );
+        } else if (session.mode === "payment") {
+          await userRef.set(
+            { creditosAvulsos: FieldValue.increment(CREDITOS_PACOTE_AVULSO) },
+            { merge: true }
+          );
         }
-
-        default:
-          // Outros eventos não nos interessam por enquanto.
-          break;
+        break;
       }
-    } catch (err) {
-      console.error("[stripe-webhook] Erro processando evento:", err);
-      return new Response("Erro interno ao processar o evento", { status: 500 });
-    }
 
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  },
-};
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object;
+        await revogarPremiumPorCustomerId(db, subscription.customer);
+        break;
+      }
+
+      case "customer.subscription.updated": {
+        const subscription = event.data.object;
+        if (subscription.status === "canceled" || subscription.status === "unpaid") {
+          await revogarPremiumPorCustomerId(db, subscription.customer);
+        }
+        break;
+      }
+
+      default:
+        // Outros eventos não nos interessam por enquanto.
+        break;
+    }
+  } catch (err) {
+    console.error("[stripe-webhook] Erro processando evento:", err);
+    res.status(500).send("Erro interno ao processar o evento");
+    return;
+  }
+
+  res.status(200).json({ received: true });
+}
