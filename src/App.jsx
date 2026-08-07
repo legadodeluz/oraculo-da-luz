@@ -24,7 +24,7 @@ const CREDITOS_PACOTE_AVULSO = 30;
 const STRIPE_PAYMENT_LINK_ASSINATURA = "https://buy.stripe.com/eVqbJ1dFT91TdNY37NbMQ00";
 // TODO(Hélio): troque pelo link do produto "Pacote de 30 consultas" (R$19,90, pagamento único)
 // depois de criá-lo no painel do Stripe.
-const STRIPE_PAYMENT_LINK_PACOTE = "https://buy.stripe.com/9B6cN545j3HzdNY37NbMQ01";
+const STRIPE_PAYMENT_LINK_PACOTE = "https://buy.stripe.com/SEU_LINK_DO_PACOTE_AQUI";
 
 const OPENING_PHRASES = [
   "O que está pesando no seu coração hoje?",
@@ -162,7 +162,7 @@ function Mensagem({ msg, index }) {
         <div style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, marginRight: 10, marginTop: 2, background: "radial-gradient(circle, #fbbf24, #f97316)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, boxShadow: "0 0 12px rgba(251,191,36,0.5)" }}>✦</div>
       )}
       <div style={{ maxWidth: "78%", padding: "13px 17px", borderRadius: isUser ? "20px 20px 4px 20px" : "20px 20px 20px 4px", background: isUser ? "rgba(139,100,20,0.25)" : "rgba(255,255,255,0.06)", border: `1px solid ${isUser ? "rgba(200,168,75,0.3)" : "rgba(251,191,36,0.15)"}`, backdropFilter: "blur(10px)" }}>
-        <p style={{ color: isUser ? "#fef3c7" : "#f5e6c8", fontSize: 14, lineHeight: 1.75, margin: 0, fontFamily: "'Lora', Georgia, serif", whiteSpace: "pre-wrap" }}>{msg.content}</p>
+        <p style={{ color: isUser ? "#fef3c7" : "#f5e6c8", fontSize: 16, lineHeight: 1.75, margin: 0, fontFamily: "'Lora', Georgia, serif", whiteSpace: "pre-wrap" }}>{msg.content}</p>
       </div>
     </div>
   );
@@ -346,6 +346,10 @@ function TelaLogin() {
 
 const MUSICA_URL = "/hirohasaimoto-gentle-as-forever-484820.mp3";
 
+// Quantas mensagens recentes (do histórico salvo) recarregar como contexto
+// quando o usuário reabre a conversa — equilíbrio entre continuidade e custo.
+const HISTORICO_CONTEXTO = 20;
+
 // ── App principal ──────────────────────────────────────────────────
 export default function App() {
   const [tela, setTela]               = useState("login");
@@ -467,6 +471,14 @@ export default function App() {
 
   function entrar() {
     setTela("oraculo");
+    // Recarrega as últimas mensagens salvas para o Oráculo ter continuidade
+    // com o que já foi conversado, em vez de começar sempre do zero.
+    if (mensagens.length === 0 && dadosUsuario?.historico?.length > 0) {
+      const recentes = dadosUsuario.historico
+        .slice(-HISTORICO_CONTEXTO)
+        .map(({ role, content }) => ({ role, content }));
+      setMensagens(recentes);
+    }
     setTimeout(() => inputRef.current?.focus(), 400);
     setTimeout(() => {
       if (!audioRef.current) { audioRef.current = new Audio(MUSICA_URL); audioRef.current.loop = true; audioRef.current.volume = 0.25; }
@@ -626,7 +638,7 @@ export default function App() {
               [...dadosUsuario.historico].reverse().map((msg, i) => (
                 <div key={i} style={{ marginBottom: 12, padding: "12px 16px", background: msg.role === "user" ? "rgba(139,100,20,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${msg.role === "user" ? "rgba(200,168,75,0.2)" : "rgba(251,191,36,0.08)"}`, borderRadius: 14 }}>
                   <p style={{ color: "rgba(251,191,36,0.4)", fontSize: 10, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 4 }}>{msg.role === "user" ? "Você" : "Oráculo"} · {new Date(msg.timestamp).toLocaleDateString("pt-BR")}</p>
-                  <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 13, lineHeight: 1.7, fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
+                  <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 15, lineHeight: 1.7, fontFamily: "'Lora', Georgia, serif", fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
                 </div>
               ))
             ) : (
@@ -653,10 +665,10 @@ export default function App() {
                 </button>
               )}
               {premium && <span style={{ fontSize: 11, color: "rgba(110,231,183,0.5)", fontFamily: "'Cinzel',serif", padding: "4px 8px" }}>∞✦</span>}
-              <button onClick={() => setMostrarHistorico(true)} title="Histórico" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>📖</button>
-              <button onClick={toggleMusica} style={{ background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none", border: musicaAtiva ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent", borderRadius: 8, color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{musicaAtiva ? "🔔" : "🔕"}</button>
-              <button onClick={() => setMostrarVozes(v => !v)} style={{ background: vozAtiva ? "rgba(110,231,183,0.12)" : "none", border: vozAtiva ? "1px solid rgba(110,231,183,0.3)" : "1px solid transparent", borderRadius: 8, color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{vozAtiva ? "🔊" : "🔈"}</button>
-              <button onClick={compartilhar} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 18, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>⬆</button>
+              <button onClick={() => setMostrarHistorico(true)} title="Histórico" aria-label="Ver histórico de conversas" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>📖</button>
+              <button onClick={toggleMusica} title={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} aria-label={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} style={{ background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none", border: musicaAtiva ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent", borderRadius: 8, color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{musicaAtiva ? "🔔" : "🔕"}</button>
+              <button onClick={() => setMostrarVozes(v => !v)} title="Configurações de voz" aria-label="Configurações de voz" style={{ background: vozAtiva ? "rgba(110,231,183,0.12)" : "none", border: vozAtiva ? "1px solid rgba(110,231,183,0.3)" : "1px solid transparent", borderRadius: 8, color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{vozAtiva ? "🔊" : "🔈"}</button>
+              <button onClick={compartilhar} title="Compartilhar" aria-label="Compartilhar" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>📤</button>
             </div>
           </div>
 
@@ -718,7 +730,7 @@ export default function App() {
               </div>
             ) : (
               <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 20, padding: "12px 14px" }}>
-                <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }} placeholder="Escreva o que está em seu coração..." rows={1} style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fef3c7", fontSize: 14, lineHeight: 1.6, fontFamily: "'Lora', Georgia, serif", fontStyle: "italic", maxHeight: 120, overflowY: "auto" }} onInput={e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />
+                <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }} placeholder="Escreva o que está em seu coração..." rows={1} style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fef3c7", fontSize: 15, lineHeight: 1.6, fontFamily: "'Lora', Georgia, serif", fontStyle: "italic", maxHeight: 120, overflowY: "auto" }} onInput={e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />
                 <button onClick={iniciarVoz} style={{ width: 38, height: 38, borderRadius: "50%", background: escutando ? "rgba(248,113,113,0.3)" : "rgba(255,255,255,0.06)", border: escutando ? "1px solid rgba(248,113,113,0.5)" : "1px solid transparent", color: escutando ? "#f87171" : "rgba(254,243,199,0.4)", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>🎤</button>
                 <button onClick={enviar} disabled={!input.trim() || carregando} style={{ width: 38, height: 38, borderRadius: "50%", background: input.trim() && !carregando ? "linear-gradient(135deg, #f97316, #fbbf24)" : "rgba(255,255,255,0.06)", border: "none", color: input.trim() && !carregando ? "#1a0a2e" : "rgba(254,243,199,0.2)", fontSize: 16, cursor: input.trim() && !carregando ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}>✦</button>
               </div>
