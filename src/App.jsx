@@ -724,7 +724,10 @@ export default function App() {
 
       {/* ── HISTÓRICO ── */}
       {mostrarHistorico && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(5,2,16,0.95)", backdropFilter: "blur(16px)", display: "flex", flexDirection: "column", padding: "24px 20px", animation: "fadeIn .3s ease" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(5,2,16,0.95)", backdropFilter: "blur(16px)", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 20px", animation: "fadeIn .3s ease" }}>
+          {/* Largura limitada e centralizada — em telas largas (computador), evita que
+              o texto se estique de ponta a ponta, o que dificulta a leitura. */}
+          <div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 640, height: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <p style={{ fontFamily: "'Cinzel',serif", color: "#fef3c7", fontSize: 16, letterSpacing: 2 }}>📖 Seu Histórico</p>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -766,7 +769,7 @@ export default function App() {
                           <p style={{ color: "rgba(251,191,36,0.4)", fontSize: 10, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 4 }}>{msg.role === "user" ? "Você" : "Oráculo"}</p>
                           <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 15, lineHeight: 1.7, fontFamily: "'Lora', Georgia, serif", fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
                           {!modoSelecao && (
-                            <p style={{ color: "rgba(251,191,36,0.35)", fontSize: 10, fontStyle: "italic", marginTop: 6 }}>↺ Retomar a partir daqui</p>
+                            <span style={{ display: "inline-block", marginTop: 8, background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 100, padding: "4px 12px", color: "#fbbf24", fontSize: 11.5, fontFamily: "'Cinzel',serif", letterSpacing: 0.5 }}>↺ Retomar a partir daqui</span>
                           )}
                         </div>
                       </button>
@@ -789,6 +792,7 @@ export default function App() {
               </button>
             </div>
           )}
+          </div>
         </div>
       )}
 
