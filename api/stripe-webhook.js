@@ -80,6 +80,31 @@ export default async function handler(req, res) {
 
   const db = getFirestoreAdmin();
 
+  // ── Idempotência ───────────────────────────────────────────────────
+  // O Stripe garante entrega "pelo menos uma vez" — ou seja, o MESMO evento
+  // pode chegar aqui mais de uma vez de propósito (nova tentativa automática
+  // depois de um erro, um "Reenviar" manual no painel, etc.). Sem essa
+  // proteção, reprocessar o mesmo "checkout.session.completed" concederia os
+  // créditos ou o premium de novo, em dobro. Aqui registramos o ID do evento
+  // antes de processá-lo; se ele já existir, é porque já foi tratado, e
+  // simplesmente ignoramos a repetição.
+  const eventoRef = db.collection("stripeEventosProcessados").doc(event.id);
+  try {
+    await eventoRef.create({
+      tipo: event.type,
+      processadoEm: FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    if (err.code === 6 /* ALREADY_EXISTS */) {
+      console.log(`[stripe-webhook] Evento ${event.id} já foi processado antes — ignorando repetição.`);
+      res.status(200).json({ received: true, duplicado: true });
+      return;
+    }
+    console.error("[stripe-webhook] Erro ao registrar idempotência do evento:", err);
+    res.status(500).send("Erro interno ao processar o evento");
+    return;
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
