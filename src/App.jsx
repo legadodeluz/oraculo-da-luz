@@ -372,6 +372,8 @@ export default function App() {
   const [confirmandoPagamento, setConfirmandoPagamento] = useState(false);
   const [mostrarBotaoTopo, setMostrarBotaoTopo]   = useState(false);
   const [mostrarBotaoFundo, setMostrarBotaoFundo] = useState(false);
+  const [modoSelecao, setModoSelecao]             = useState(false);
+  const [selecionadas, setSelecionadas]           = useState(new Set());
 
   const bottomRef      = useRef(null);
   const inputRef       = useRef(null);
@@ -528,21 +530,43 @@ export default function App() {
     setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); inputRef.current?.focus(); }, 300);
   }
 
-  // Apaga do histórico salvo só as mensagens de um dia específico —
-  // reescreve o array inteiro sem elas, já que o Firestore não tem um jeito
-  // de remover itens de um array por filtro, só por valor exato.
-  async function apagarConversaDoDia(dataStr) {
-    if (!usuario) return;
+  // Liga/desliga o modo de seleção do Histórico. Ao sair do modo,
+  // limpamos qualquer marcação pendente.
+  function alternarModoSelecao() {
+    setModoSelecao((atual) => !atual);
+    setSelecionadas(new Set());
+  }
+
+  // Marca/desmarca uma conversa específica. Usamos o timestamp (que é
+  // gravado com milissegundos, então é praticamente único por mensagem)
+  // como identificador — o histórico no Firestore é um array simples,
+  // sem um "id" próprio para cada item.
+  function alternarSelecao(timestamp) {
+    setSelecionadas((atual) => {
+      const nova = new Set(atual);
+      if (nova.has(timestamp)) nova.delete(timestamp);
+      else nova.add(timestamp);
+      return nova;
+    });
+  }
+
+  // Apaga do histórico salvo só as conversas marcadas — reescreve o array
+  // inteiro sem elas, já que o Firestore não tem um jeito de remover itens
+  // de um array por filtro, só por valor exato.
+  async function apagarSelecionadas() {
+    if (!usuario || selecionadas.size === 0) return;
     const confirmar = window.confirm(
-      `Apagar toda a conversa de ${dataStr}? Essa ação não pode ser desfeita.`
+      selecionadas.size === 1
+        ? "Apagar a conversa selecionada? Essa ação não pode ser desfeita."
+        : `Apagar as ${selecionadas.size} conversas selecionadas? Essa ação não pode ser desfeita.`
     );
     if (!confirmar) return;
 
     const historicoAtual = dadosUsuario?.historico || [];
-    const restante = historicoAtual.filter(
-      (msg) => new Date(msg.timestamp).toLocaleDateString("pt-BR") !== dataStr
-    );
+    const restante = historicoAtual.filter((msg) => !selecionadas.has(msg.timestamp));
     await updateDoc(doc(db, "usuarios", usuario.uid), { historico: restante });
+    setSelecionadas(new Set());
+    setModoSelecao(false);
   }
 
   function detectarCrise(texto) {
@@ -703,7 +727,17 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(5,2,16,0.95)", backdropFilter: "blur(16px)", display: "flex", flexDirection: "column", padding: "24px 20px", animation: "fadeIn .3s ease" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <p style={{ fontFamily: "'Cinzel',serif", color: "#fef3c7", fontSize: 16, letterSpacing: 2 }}>📖 Seu Histórico</p>
-            <button onClick={() => setMostrarHistorico(false)} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.4)", fontSize: 22, cursor: "pointer" }}>×</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              {dadosUsuario?.historico?.length > 0 && (
+                <button
+                  onClick={alternarModoSelecao}
+                  style={{ background: "none", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 100, padding: "5px 12px", color: modoSelecao ? "#fef3c7" : "rgba(254,243,199,0.5)", fontSize: 11, cursor: "pointer", fontFamily: "'Cinzel',serif", letterSpacing: 1 }}
+                >
+                  {modoSelecao ? "Cancelar" : "Selecionar"}
+                </button>
+              )}
+              <button onClick={() => setMostrarHistorico(false)} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.4)", fontSize: 22, cursor: "pointer" }}>×</button>
+            </div>
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
             {dadosUsuario?.historico?.length > 0 ? (
@@ -714,28 +748,27 @@ export default function App() {
                   const dataMsg = new Date(msg.timestamp).toLocaleDateString("pt-BR");
                   const inicioDeGrupo = dataMsg !== dataAnterior;
                   dataAnterior = dataMsg;
+                  const marcada = selecionadas.has(msg.timestamp);
                   return (
                     <div key={i}>
                       {inicioDeGrupo && (
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: i === 0 ? "0 0 10px" : "22px 0 10px" }}>
-                          <p style={{ color: "rgba(251,191,36,0.5)", fontSize: 11, fontFamily: "'Cinzel',serif", letterSpacing: 1 }}>{dataMsg}</p>
-                          <button
-                            onClick={() => apagarConversaDoDia(dataMsg)}
-                            title="Apagar a conversa deste dia"
-                            style={{ background: "none", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 100, padding: "4px 10px", color: "rgba(252,165,165,0.7)", fontSize: 10, fontStyle: "italic", cursor: "pointer" }}
-                          >
-                            🗑️ Apagar esta conversa
-                          </button>
-                        </div>
+                        <p style={{ color: "rgba(251,191,36,0.5)", fontSize: 11, fontFamily: "'Cinzel',serif", letterSpacing: 1, margin: i === 0 ? "0 0 10px" : "22px 0 10px" }}>{dataMsg}</p>
                       )}
                       <button
-                        onClick={() => retomarDoHistorico(i)}
-                        title="Toque para retomar a conversa a partir daqui"
-                        style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 12, padding: "12px 16px", background: msg.role === "user" ? "rgba(139,100,20,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${msg.role === "user" ? "rgba(200,168,75,0.2)" : "rgba(251,191,36,0.08)"}`, borderRadius: 14, cursor: "pointer", fontFamily: "inherit" }}
+                        onClick={() => (modoSelecao ? alternarSelecao(msg.timestamp) : retomarDoHistorico(i))}
+                        title={modoSelecao ? "Toque para marcar/desmarcar" : "Toque para retomar a conversa a partir daqui"}
+                        style={{ display: "flex", alignItems: "flex-start", gap: 10, width: "100%", textAlign: "left", marginBottom: 12, padding: "12px 16px", background: marcada ? "rgba(248,113,113,0.12)" : msg.role === "user" ? "rgba(139,100,20,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${marcada ? "rgba(248,113,113,0.5)" : msg.role === "user" ? "rgba(200,168,75,0.2)" : "rgba(251,191,36,0.08)"}`, borderRadius: 14, cursor: "pointer", fontFamily: "inherit" }}
                       >
-                        <p style={{ color: "rgba(251,191,36,0.4)", fontSize: 10, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 4 }}>{msg.role === "user" ? "Você" : "Oráculo"}</p>
-                        <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 15, lineHeight: 1.7, fontFamily: "'Lora', Georgia, serif", fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
-                        <p style={{ color: "rgba(251,191,36,0.35)", fontSize: 10, fontStyle: "italic", marginTop: 6 }}>↺ Retomar a partir daqui</p>
+                        {modoSelecao && (
+                          <span style={{ fontSize: 16, marginTop: 1, color: marcada ? "#f87171" : "rgba(254,243,199,0.3)" }}>{marcada ? "☑" : "☐"}</span>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ color: "rgba(251,191,36,0.4)", fontSize: 10, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 4 }}>{msg.role === "user" ? "Você" : "Oráculo"}</p>
+                          <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 15, lineHeight: 1.7, fontFamily: "'Lora', Georgia, serif", fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
+                          {!modoSelecao && (
+                            <p style={{ color: "rgba(251,191,36,0.35)", fontSize: 10, fontStyle: "italic", marginTop: 6 }}>↺ Retomar a partir daqui</p>
+                          )}
+                        </div>
                       </button>
                     </div>
                   );
@@ -745,6 +778,17 @@ export default function App() {
               <p style={{ color: "rgba(254,243,199,0.3)", textAlign: "center", fontStyle: "italic", marginTop: 40 }}>Suas conversas aparecerão aqui.</p>
             )}
           </div>
+          {modoSelecao && (
+            <div style={{ paddingTop: 14, display: "flex", justifyContent: "center" }}>
+              <button
+                onClick={apagarSelecionadas}
+                disabled={selecionadas.size === 0}
+                style={{ background: selecionadas.size === 0 ? "rgba(248,113,113,0.08)" : "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 100, padding: "10px 24px", color: selecionadas.size === 0 ? "rgba(252,165,165,0.3)" : "#fca5a5", fontSize: 12, fontFamily: "'Cinzel',serif", letterSpacing: 1, cursor: selecionadas.size === 0 ? "default" : "pointer" }}
+              >
+                🗑️ Apagar selecionadas{selecionadas.size > 0 ? ` (${selecionadas.size})` : ""}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
