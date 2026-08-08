@@ -528,6 +528,23 @@ export default function App() {
     setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); inputRef.current?.focus(); }, 300);
   }
 
+  // Apaga do histórico salvo só as mensagens de um dia específico —
+  // reescreve o array inteiro sem elas, já que o Firestore não tem um jeito
+  // de remover itens de um array por filtro, só por valor exato.
+  async function apagarConversaDoDia(dataStr) {
+    if (!usuario) return;
+    const confirmar = window.confirm(
+      `Apagar toda a conversa de ${dataStr}? Essa ação não pode ser desfeita.`
+    );
+    if (!confirmar) return;
+
+    const historicoAtual = dadosUsuario?.historico || [];
+    const restante = historicoAtual.filter(
+      (msg) => new Date(msg.timestamp).toLocaleDateString("pt-BR") !== dataStr
+    );
+    await updateDoc(doc(db, "usuarios", usuario.uid), { historico: restante });
+  }
+
   function detectarCrise(texto) {
     return ["suicídio","suicidio","me matar","acabar com tudo","não quero mais viver","nao quero mais viver","me machucar","desesperado","desesperada"].some(p => texto.toLowerCase().includes(p));
   }
@@ -690,18 +707,40 @@ export default function App() {
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
             {dadosUsuario?.historico?.length > 0 ? (
-              [...dadosUsuario.historico].reverse().map((msg, i) => (
-                <button
-                  key={i}
-                  onClick={() => retomarDoHistorico(i)}
-                  title="Toque para retomar a conversa a partir daqui"
-                  style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 12, padding: "12px 16px", background: msg.role === "user" ? "rgba(139,100,20,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${msg.role === "user" ? "rgba(200,168,75,0.2)" : "rgba(251,191,36,0.08)"}`, borderRadius: 14, cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  <p style={{ color: "rgba(251,191,36,0.4)", fontSize: 10, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 4 }}>{msg.role === "user" ? "Você" : "Oráculo"} · {new Date(msg.timestamp).toLocaleDateString("pt-BR")}</p>
-                  <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 15, lineHeight: 1.7, fontFamily: "'Lora', Georgia, serif", fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
-                  <p style={{ color: "rgba(251,191,36,0.35)", fontSize: 10, fontStyle: "italic", marginTop: 6 }}>↺ Retomar a partir daqui</p>
-                </button>
-              ))
+              (() => {
+                const invertido = [...dadosUsuario.historico].reverse();
+                let dataAnterior = null;
+                return invertido.map((msg, i) => {
+                  const dataMsg = new Date(msg.timestamp).toLocaleDateString("pt-BR");
+                  const inicioDeGrupo = dataMsg !== dataAnterior;
+                  dataAnterior = dataMsg;
+                  return (
+                    <div key={i}>
+                      {inicioDeGrupo && (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: i === 0 ? "0 0 10px" : "22px 0 10px" }}>
+                          <p style={{ color: "rgba(251,191,36,0.5)", fontSize: 11, fontFamily: "'Cinzel',serif", letterSpacing: 1 }}>{dataMsg}</p>
+                          <button
+                            onClick={() => apagarConversaDoDia(dataMsg)}
+                            title="Apagar a conversa deste dia"
+                            style={{ background: "none", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 100, padding: "4px 10px", color: "rgba(252,165,165,0.7)", fontSize: 10, fontStyle: "italic", cursor: "pointer" }}
+                          >
+                            🗑️ Apagar esta conversa
+                          </button>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => retomarDoHistorico(i)}
+                        title="Toque para retomar a conversa a partir daqui"
+                        style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 12, padding: "12px 16px", background: msg.role === "user" ? "rgba(139,100,20,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${msg.role === "user" ? "rgba(200,168,75,0.2)" : "rgba(251,191,36,0.08)"}`, borderRadius: 14, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        <p style={{ color: "rgba(251,191,36,0.4)", fontSize: 10, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 4 }}>{msg.role === "user" ? "Você" : "Oráculo"}</p>
+                        <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 15, lineHeight: 1.7, fontFamily: "'Lora', Georgia, serif", fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
+                        <p style={{ color: "rgba(251,191,36,0.35)", fontSize: 10, fontStyle: "italic", marginTop: 6 }}>↺ Retomar a partir daqui</p>
+                      </button>
+                    </div>
+                  );
+                });
+              })()
             ) : (
               <p style={{ color: "rgba(254,243,199,0.3)", textAlign: "center", fontStyle: "italic", marginTop: 40 }}>Suas conversas aparecerão aqui.</p>
             )}
