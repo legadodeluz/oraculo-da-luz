@@ -508,6 +508,26 @@ export default function App() {
     }, 800);
   }
 
+  // Limpa a conversa ativa para começar do zero — não apaga nada do
+  // histórico salvo, só o que está sendo exibido/enviado à IA agora.
+  function novaConsulta() {
+    setMensagens([]);
+    setTimeout(() => inputRef.current?.focus(), 200);
+  }
+
+  // Retoma uma conversa a partir de um ponto específico do histórico salvo.
+  // `indexReverso` é a posição no array como aparece na tela (mais recente
+  // primeiro); convertemos para a ordem cronológica real antes de carregar.
+  function retomarDoHistorico(indexReverso) {
+    const historicoCompleto = dadosUsuario?.historico || [];
+    const ateAqui = historicoCompleto.slice(0, historicoCompleto.length - indexReverso);
+    const recentes = ateAqui.slice(-HISTORICO_CONTEXTO).map(({ role, content }) => ({ role, content }));
+    setMensagens(recentes);
+    setMostrarHistorico(false);
+    setTela("oraculo");
+    setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); inputRef.current?.focus(); }, 300);
+  }
+
   function detectarCrise(texto) {
     return ["suicídio","suicidio","me matar","acabar com tudo","não quero mais viver","nao quero mais viver","me machucar","desesperado","desesperada"].some(p => texto.toLowerCase().includes(p));
   }
@@ -671,10 +691,16 @@ export default function App() {
           <div style={{ flex: 1, overflowY: "auto" }}>
             {dadosUsuario?.historico?.length > 0 ? (
               [...dadosUsuario.historico].reverse().map((msg, i) => (
-                <div key={i} style={{ marginBottom: 12, padding: "12px 16px", background: msg.role === "user" ? "rgba(139,100,20,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${msg.role === "user" ? "rgba(200,168,75,0.2)" : "rgba(251,191,36,0.08)"}`, borderRadius: 14 }}>
+                <button
+                  key={i}
+                  onClick={() => retomarDoHistorico(i)}
+                  title="Toque para retomar a conversa a partir daqui"
+                  style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 12, padding: "12px 16px", background: msg.role === "user" ? "rgba(139,100,20,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${msg.role === "user" ? "rgba(200,168,75,0.2)" : "rgba(251,191,36,0.08)"}`, borderRadius: 14, cursor: "pointer", fontFamily: "inherit" }}
+                >
                   <p style={{ color: "rgba(251,191,36,0.4)", fontSize: 10, fontFamily: "'Cinzel',serif", letterSpacing: 1, marginBottom: 4 }}>{msg.role === "user" ? "Você" : "Oráculo"} · {new Date(msg.timestamp).toLocaleDateString("pt-BR")}</p>
                   <p style={{ color: "rgba(254,243,199,0.6)", fontSize: 15, lineHeight: 1.7, fontFamily: "'Lora', Georgia, serif", fontStyle: msg.role === "assistant" ? "italic" : "normal" }}>{msg.content}</p>
-                </div>
+                  <p style={{ color: "rgba(251,191,36,0.35)", fontSize: 10, fontStyle: "italic", marginTop: 6 }}>↺ Retomar a partir daqui</p>
+                </button>
               ))
             ) : (
               <p style={{ color: "rgba(254,243,199,0.3)", textAlign: "center", fontStyle: "italic", marginTop: 40 }}>Suas conversas aparecerão aqui.</p>
@@ -700,6 +726,7 @@ export default function App() {
                 </button>
               )}
               {premium && <span style={{ fontSize: 11, color: "rgba(110,231,183,0.5)", fontFamily: "'Cinzel',serif", padding: "4px 8px" }}>∞✦</span>}
+              <button onClick={novaConsulta} title="Nova consulta (limpa a tela, sem apagar o histórico)" aria-label="Iniciar nova consulta" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>✚</button>
               <button onClick={() => setMostrarHistorico(true)} title="Histórico" aria-label="Ver histórico de conversas" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>📖</button>
               <button onClick={toggleMusica} title={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} aria-label={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} style={{ background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none", border: musicaAtiva ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent", borderRadius: 8, color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{musicaAtiva ? "🔔" : "🔕"}</button>
               <button onClick={() => setMostrarVozes(v => !v)} title="Configurações de voz" aria-label="Configurações de voz" style={{ background: vozAtiva ? "rgba(110,231,183,0.12)" : "none", border: vozAtiva ? "1px solid rgba(110,231,183,0.3)" : "1px solid transparent", borderRadius: 8, color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{vozAtiva ? "🔊" : "🔈"}</button>
