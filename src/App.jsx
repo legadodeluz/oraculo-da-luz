@@ -994,7 +994,7 @@ export default function App() {
                 <button onClick={enviar} disabled={!input.trim() || carregando} style={{ width: 38, height: 38, borderRadius: "50%", background: input.trim() && !carregando ? "linear-gradient(135deg, #f97316, #fbbf24)" : "rgba(255,255,255,0.06)", border: "none", color: input.trim() && !carregando ? "#1a0a2e" : "rgba(254,243,199,0.2)", fontSize: 16, cursor: input.trim() && !carregando ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center" }}>✦</button>
               </div>
             )}
-            <p style={{ color: "rgba(254,243,199,0.2)", fontSize: 10, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>🎤 Toque no microfone para falar · Enter para enviar</p>
+            <p style={{ color: "rgba(254,243,199,0.4)", fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>🎤 Toque no microfone para falar · Enter para enviar</p>
           </div>
         </div>
       )}
