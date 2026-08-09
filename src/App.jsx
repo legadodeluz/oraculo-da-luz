@@ -807,8 +807,8 @@ export default function App() {
           </button>
 
           <div style={{ display: "flex", gap: 16, marginTop: 24 }}>
-            <button onClick={() => setMostrarHistorico(true)} style={{ background: "none", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 100, padding: "8px 16px", color: "rgba(254,243,199,0.3)", fontSize: 11, cursor: "pointer", fontFamily: "'Cinzel',serif", letterSpacing: 1 }}>
-              📖 Histórico
+            <button onClick={() => setMostrarHistorico(true)} style={{ background: "none", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 100, padding: "8px 16px", color: "rgba(254,243,199,0.3)", fontSize: 11, cursor: "pointer", fontFamily: "'Cinzel',serif", letterSpacing: 1, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <IconeLivro width="13" height="13" /> Histórico
             </button>
             <button onClick={fazerLogout} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.2)", fontSize: 11, cursor: "pointer", fontFamily: "'Lora',serif", fontStyle: "italic" }}>
               Sair
@@ -824,7 +824,7 @@ export default function App() {
               o texto se estique de ponta a ponta, o que dificulta a leitura. */}
           <div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 640, height: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 10, marginBottom: 20 }}>
-            <p style={{ fontFamily: "'Cinzel',serif", color: "#fef3c7", fontSize: 16, letterSpacing: 2, whiteSpace: "nowrap" }}>📖 Seu Histórico</p>
+            <p style={{ fontFamily: "'Cinzel',serif", color: "#fef3c7", fontSize: 16, letterSpacing: 2, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 8 }}><IconeLivro width="15" height="15" /> Seu Histórico</p>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               {dadosUsuario?.historico?.length > 0 && (
                 <button
