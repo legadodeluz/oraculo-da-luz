@@ -152,6 +152,57 @@ function Flame() {
   );
 }
 
+// ── Ícones do cabeçalho ──────────────────────────────────────────────
+// Desenhados em SVG (em vez de emojis) para que a cor siga o tema dourado
+// do app. Emojis são exibidos pelo sistema operacional/navegador com
+// cores fixas e cheias (ex.: o ícone de compartilhar aparece laranja/
+// vermelho vivo no Chrome do Android) — isso não pode ser controlado por
+// CSS e destoa do visual do app. Com SVG e "currentColor", o ícone sempre
+// usa a mesma cor definida no botão, em qualquer aparelho ou navegador.
+function IconeLivro(props) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 5.5C4 4.67 4.67 4 5.5 4H11a1 1 0 0 1 1 1v14.5a.5.5 0 0 0-.5-.5H5.5C4.67 19 4 18.33 4 17.5z" />
+      <path d="M20 5.5c0-.83-.67-1.5-1.5-1.5H13a1 1 0 0 0-1 1v14.5a.5.5 0 0 1 .5-.5h5.5c.83 0 1.5-.67 1.5-1.5z" />
+    </svg>
+  );
+}
+function IconeSino({ ativo, ...props }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      {!ativo && <line x1="3" y1="3" x2="21" y2="21" />}
+    </svg>
+  );
+}
+function IconeAltoFalante({ ativo, ...props }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      {ativo ? (
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      ) : (
+        <>
+          <line x1="23" y1="9" x2="17" y2="15" />
+          <line x1="17" y1="9" x2="23" y2="15" />
+        </>
+      )}
+    </svg>
+  );
+}
+function IconeCompartilhar(props) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
+}
+
 function Mensagem({ msg, index }) {
   const isUser = msg.role === "user";
   return (
@@ -728,13 +779,13 @@ export default function App() {
           {/* Largura limitada e centralizada — em telas largas (computador), evita que
               o texto se estique de ponta a ponta, o que dificulta a leitura. */}
           <div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 640, height: "100%" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <p style={{ fontFamily: "'Cinzel',serif", color: "#fef3c7", fontSize: 16, letterSpacing: 2 }}>📖 Seu Histórico</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 10, marginBottom: 20 }}>
+            <p style={{ fontFamily: "'Cinzel',serif", color: "#fef3c7", fontSize: 16, letterSpacing: 2, whiteSpace: "nowrap" }}>📖 Seu Histórico</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               {dadosUsuario?.historico?.length > 0 && (
                 <button
                   onClick={alternarModoSelecao}
-                  style={{ background: "none", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 100, padding: "5px 12px", color: modoSelecao ? "#fef3c7" : "rgba(254,243,199,0.5)", fontSize: 11, cursor: "pointer", fontFamily: "'Cinzel',serif", letterSpacing: 1 }}
+                  style={{ background: "none", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 100, padding: "5px 12px", color: modoSelecao ? "#fef3c7" : "rgba(254,243,199,0.5)", fontSize: 11, cursor: "pointer", fontFamily: "'Cinzel',serif", letterSpacing: 1, whiteSpace: "nowrap" }}
                 >
                   {modoSelecao ? "Cancelar" : "Selecionar"}
                 </button>
@@ -814,10 +865,10 @@ export default function App() {
               )}
               {premium && <span style={{ fontSize: 11, color: "rgba(110,231,183,0.5)", fontFamily: "'Cinzel',serif", padding: "4px 8px" }}>∞✦</span>}
               <button onClick={novaConsulta} title="Nova consulta (limpa a tela, sem apagar o histórico)" aria-label="Iniciar nova consulta" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>✚</button>
-              <button onClick={() => setMostrarHistorico(true)} title="Histórico" aria-label="Ver histórico de conversas" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>📖</button>
-              <button onClick={toggleMusica} title={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} aria-label={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} style={{ background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none", border: musicaAtiva ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent", borderRadius: 8, color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{musicaAtiva ? "🔔" : "🔕"}</button>
-              <button onClick={() => setMostrarVozes(v => !v)} title="Configurações de voz" aria-label="Configurações de voz" style={{ background: vozAtiva ? "rgba(110,231,183,0.12)" : "none", border: vozAtiva ? "1px solid rgba(110,231,183,0.3)" : "1px solid transparent", borderRadius: 8, color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px" }}>{vozAtiva ? "🔊" : "🔈"}</button>
-              <button onClick={compartilhar} title="Compartilhar" aria-label="Compartilhar" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>📤</button>
+              <button onClick={() => setMostrarHistorico(true)} title="Histórico" aria-label="Ver histórico de conversas" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", cursor: "pointer", padding: "4px 7px", borderRadius: 8, display: "flex" }}><IconeLivro /></button>
+              <button onClick={toggleMusica} title={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} aria-label={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} style={{ background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none", border: musicaAtiva ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent", borderRadius: 8, color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)", cursor: "pointer", padding: "4px 7px", display: "flex" }}><IconeSino ativo={musicaAtiva} /></button>
+              <button onClick={() => setMostrarVozes(v => !v)} title="Configurações de voz" aria-label="Configurações de voz" style={{ background: vozAtiva ? "rgba(110,231,183,0.12)" : "none", border: vozAtiva ? "1px solid rgba(110,231,183,0.3)" : "1px solid transparent", borderRadius: 8, color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)", cursor: "pointer", padding: "4px 7px", display: "flex" }}><IconeAltoFalante ativo={vozAtiva} /></button>
+              <button onClick={compartilhar} title="Compartilhar" aria-label="Compartilhar" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", cursor: "pointer", padding: "4px 7px", borderRadius: 8, display: "flex" }}><IconeCompartilhar /></button>
             </div>
           </div>
 
