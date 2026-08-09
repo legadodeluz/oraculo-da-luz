@@ -202,6 +202,50 @@ function IconeCompartilhar(props) {
     </svg>
   );
 }
+// Seta de voltar — uma seta desenhada (mais grossa e clara) em vez do
+// caractere de texto "←", que fica fino e apagado demais para bater o olho.
+function IconeVoltar(props) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </svg>
+  );
+}
+// Balão de conversa com um "+" dentro — deixa claro que o botão inicia uma
+// NOVA CONVERSA (limpa a tela), diferente de um "✚" solto, que lembra mais
+// "adicionar algo" do que "recomeçar".
+function IconeNovaConversa(props) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <line x1="12" y1="7.5" x2="12" y2="13.5" />
+      <line x1="9" y1="10.5" x2="15" y2="10.5" />
+    </svg>
+  );
+}
+
+// Estilo compartilhado dos botões de ação (histórico, nova consulta, música,
+// voz, compartilhar) — todos com a mesma "pílula" de fundo, do jeito que já
+// era só no botão de música. Também deixa a área de toque maior (mais fácil
+// de acertar com o dedo).
+function estiloBotaoAcao(ativo, cor = "dourado") {
+  const paleta = {
+    dourado: { bg: "rgba(251,191,36,0.18)", borda: "rgba(251,191,36,0.4)", cor: "#fbbf24" },
+    verde: { bg: "rgba(110,231,183,0.15)", borda: "rgba(110,231,183,0.4)", cor: "#6EE7B7" },
+  }[cor];
+  return {
+    background: ativo ? paleta.bg : "rgba(251,191,36,0.07)",
+    border: `1px solid ${ativo ? paleta.borda : "rgba(251,191,36,0.16)"}`,
+    borderRadius: 12,
+    color: ativo ? paleta.cor : "rgba(254,243,199,0.55)",
+    cursor: "pointer",
+    padding: "9px 13px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+}
 
 function Mensagem({ msg, index }) {
   const isUser = msg.role === "user";
@@ -852,7 +896,7 @@ export default function App() {
         <div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 600, height: "100vh", overflow: "hidden", position: "relative", zIndex: 1, animation: "fadeIn 0.8s ease" }}>
           {/* Header */}
           <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid rgba(251,191,36,0.1)", backdropFilter: "blur(20px)", background: "rgba(5,2,16,0.5)", display: "flex", alignItems: "center", gap: 14, position: "sticky", top: 0, zIndex: 10 }}>
-            <button onClick={() => { setTela("login"); setMensagens([]); setMostrarCVV(false); window.speechSynthesis?.cancel(); }} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.4)", fontSize: 20, cursor: "pointer", padding: "4px 8px", borderRadius: 8 }}>←</button>
+            <button onClick={() => { setTela("login"); setMensagens([]); setMostrarCVV(false); window.speechSynthesis?.cancel(); }} title="Voltar" aria-label="Voltar para a tela anterior" style={estiloBotaoAcao(false)}><IconeVoltar /></button>
             <div style={{ flex: 1, textAlign: "center" }}>
               <p style={{ fontFamily: "'Cinzel',serif", fontSize: 16, color: "#fef3c7", letterSpacing: 2, margin: 0 }}>O Oráculo</p>
               <p style={{ color: "rgba(251,191,36,0.5)", fontSize: 10, letterSpacing: 3, textTransform: "uppercase", margin: "2px 0 0", fontFamily: "'Cinzel',serif" }}>Legado de Luz</p>
@@ -864,17 +908,13 @@ export default function App() {
                 </button>
               )}
               {premium && <span style={{ fontSize: 11, color: "rgba(110,231,183,0.5)", fontFamily: "'Cinzel',serif", padding: "4px 8px" }}>∞✦</span>}
-              <button onClick={novaConsulta} title="Nova consulta (limpa a tela, sem apagar o histórico)" aria-label="Iniciar nova consulta" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", fontSize: 16, cursor: "pointer", padding: "4px 7px", borderRadius: 8 }}>✚</button>
-              <button onClick={() => setMostrarHistorico(true)} title="Histórico" aria-label="Ver histórico de conversas" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", cursor: "pointer", padding: "4px 7px", borderRadius: 8, display: "flex" }}><IconeLivro /></button>
-              <button onClick={toggleMusica} title={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} aria-label={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} style={{ background: musicaAtiva ? "rgba(251,191,36,0.15)" : "none", border: musicaAtiva ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent", borderRadius: 8, color: musicaAtiva ? "#fbbf24" : "rgba(254,243,199,0.35)", cursor: "pointer", padding: "4px 7px", display: "flex" }}><IconeSino ativo={musicaAtiva} /></button>
-              <button onClick={() => setMostrarVozes(v => !v)} title="Configurações de voz" aria-label="Configurações de voz" style={{ background: vozAtiva ? "rgba(110,231,183,0.12)" : "none", border: vozAtiva ? "1px solid rgba(110,231,183,0.3)" : "1px solid transparent", borderRadius: 8, color: vozAtiva ? "#6EE7B7" : "rgba(254,243,199,0.35)", cursor: "pointer", padding: "4px 7px", display: "flex" }}><IconeAltoFalante ativo={vozAtiva} /></button>
-              <button onClick={compartilhar} title="Compartilhar" aria-label="Compartilhar" style={{ background: "none", border: "none", color: "rgba(254,243,199,0.35)", cursor: "pointer", padding: "4px 7px", borderRadius: 8, display: "flex" }}><IconeCompartilhar /></button>
             </div>
           </div>
 
-          {/* Painel de voz */}
+          {/* Painel de voz — flutua logo acima da barra de ações, perto do
+              botão de voz que agora fica embaixo. */}
           {mostrarVozes && (
-            <div style={{ position: "fixed", top: 70, right: 10, background: "rgba(10,5,25,0.97)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 14, padding: 12, minWidth: 200, zIndex: 100, animation: "fadeUp .2s ease" }}>
+            <div style={{ position: "fixed", bottom: 176, right: 20, background: "rgba(10,5,25,0.97)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 14, padding: 12, minWidth: 200, zIndex: 100, animation: "fadeUp .2s ease" }}>
               <button onClick={toggleVoz} style={{ width: "100%", padding: "8px 10px", marginBottom: 8, background: vozAtiva ? "rgba(248,113,113,0.1)" : "rgba(110,231,183,0.1)", border: `1px solid ${vozAtiva ? "rgba(248,113,113,0.3)" : "rgba(110,231,183,0.3)"}`, borderRadius: 10, color: vozAtiva ? "#f87171" : "#6EE7B7", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
                 {vozAtiva ? "🔇 Desativar voz" : "🔊 Ativar voz"}
               </button>
@@ -921,10 +961,23 @@ export default function App() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Atalhos flutuantes: ir para o topo / ir para o fim da conversa */}
-          <div style={{ position: "absolute", right: 14, bottom: 96, display: "flex", flexDirection: "column", gap: 8, zIndex: 20 }}>
+          {/* Atalhos flutuantes: ir para o topo / ir para o fim da conversa —
+              sobem um pouco mais agora, para não ficar embaixo da barra de ações. */}
+          <div style={{ position: "absolute", right: 14, bottom: 154, display: "flex", flexDirection: "column", gap: 8, zIndex: 20 }}>
             <button onClick={irParaTopo} title="Ir para o topo" aria-label="Ir para o topo da conversa" style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(10,5,25,0.85)", border: "1px solid rgba(251,191,36,0.25)", color: "rgba(254,243,199,0.7)", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(10px)", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", opacity: mostrarBotaoTopo ? 1 : 0, pointerEvents: mostrarBotaoTopo ? "auto" : "none", transition: "opacity 0.25s ease" }}>↑</button>
             <button onClick={irParaFundo} title="Ir para o fim" aria-label="Ir para o fim da conversa" style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(10,5,25,0.85)", border: "1px solid rgba(251,191,36,0.25)", color: "rgba(254,243,199,0.7)", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(10px)", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", opacity: mostrarBotaoFundo ? 1 : 0, pointerEvents: mostrarBotaoFundo ? "auto" : "none", transition: "opacity 0.25s ease" }}>↓</button>
+          </div>
+
+          {/* Barra de ações — histórico, nova consulta, música, voz e
+              compartilhar ficam aqui embaixo agora, perto do polegar,
+              em vez de lá no topo (difícil de alcançar segurando o
+              celular com uma mão só). */}
+          <div style={{ display: "flex", justifyContent: "center", gap: 10, padding: "10px 20px 2px" }}>
+            <button onClick={novaConsulta} title="Nova consulta (limpa a tela, sem apagar o histórico)" aria-label="Iniciar nova consulta" style={estiloBotaoAcao(false)}><IconeNovaConversa /></button>
+            <button onClick={() => setMostrarHistorico(true)} title="Histórico" aria-label="Ver histórico de conversas" style={estiloBotaoAcao(false)}><IconeLivro /></button>
+            <button onClick={toggleMusica} title={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} aria-label={musicaAtiva ? "Desativar música ambiente" : "Ativar música ambiente"} style={estiloBotaoAcao(musicaAtiva, "dourado")}><IconeSino ativo={musicaAtiva} /></button>
+            <button onClick={() => setMostrarVozes(v => !v)} title="Configurações de voz" aria-label="Configurações de voz" style={estiloBotaoAcao(vozAtiva, "verde")}><IconeAltoFalante ativo={vozAtiva} /></button>
+            <button onClick={compartilhar} title="Compartilhar" aria-label="Compartilhar" style={estiloBotaoAcao(false)}><IconeCompartilhar /></button>
           </div>
 
           {/* Input */}
