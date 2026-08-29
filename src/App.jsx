@@ -308,7 +308,12 @@ function ModalUpgrade({ onFechar, uid }) {
           <button onClick={irParaPacote} style={btnStyle}>✦ Comprar Pacote de {CREDITOS_PACOTE_AVULSO}</button>
         </div>
 
-        <p style={{ color: "rgba(254,243,199,0.2)", fontSize: 10, fontStyle: "italic", margin: "8px 0 16px" }}>Pagamento seguro via Stripe</p>
+        <p style={{ color: "rgba(254,243,199,0.2)", fontSize: 10, fontStyle: "italic", margin: "8px 0 4px" }}>Pagamento seguro via Stripe</p>
+        <p style={{ fontSize: 10, margin: "0 0 16px" }}>
+          <a href="/termos.html" target="_blank" rel="noopener noreferrer" style={{ color: "rgba(254,243,199,0.25)", textDecoration: "underline" }}>Termos de Uso</a>
+          <span style={{ color: "rgba(254,243,199,0.15)", margin: "0 8px" }}>·</span>
+          <a href="/privacidade.html" target="_blank" rel="noopener noreferrer" style={{ color: "rgba(254,243,199,0.25)", textDecoration: "underline" }}>Privacidade</a>
+        </p>
         {onFechar && <button onClick={onFechar} style={{ background: "none", border: "none", color: "rgba(254,243,199,0.25)", fontSize: 12, cursor: "pointer", fontFamily: "'Lora',serif", fontStyle: "italic" }}>Voltar</button>}
       </div>
     </div>
@@ -433,6 +438,11 @@ function TelaLogin() {
       </div>
 
       <p style={{ color: "rgba(254,243,199,0.15)", fontSize: 10, marginTop: 32, fontStyle: "italic", textAlign: "center" }}>Seus dados são privados e protegidos.</p>
+      <p style={{ fontSize: 10, marginTop: 6, textAlign: "center" }}>
+        <a href="/privacidade.html" style={{ color: "rgba(254,243,199,0.25)", textDecoration: "underline" }}>Política de Privacidade</a>
+        <span style={{ color: "rgba(254,243,199,0.15)", margin: "0 8px" }}>·</span>
+        <a href="/termos.html" style={{ color: "rgba(254,243,199,0.25)", textDecoration: "underline" }}>Termos de Uso</a>
+      </p>
     </div>
   );
 }
