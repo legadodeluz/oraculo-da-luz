@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Política de Privacidade — O Oráculo | Legado de Luz</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(160deg, #1a0a2e 0%, #0a0515 60%, #05020c 100%);
+      color: rgba(254,243,199,0.75);
+      font-family: 'Lora', Georgia, serif;
+      line-height: 1.75;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 56px 24px 80px; }
+    a { color: #fbbf24; }
+    a.voltar {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: rgba(254,243,199,0.45); text-decoration: none;
+      font-size: 12px; letter-spacing: 1px; margin-bottom: 32px;
+      border: 1px solid rgba(251,191,36,0.16); border-radius: 100px; padding: 6px 14px;
+    }
+    h1 {
+      font-family: 'Cinzel', serif; font-weight: 700; letter-spacing: 1px;
+      color: #fef3c7; font-size: 28px; margin: 0 0 6px;
+    }
+    .subtitulo { color: rgba(251,191,36,0.5); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; font-family: 'Cinzel', serif; margin: 0 0 40px; }
+    h2 {
+      font-family: 'Cinzel', serif; color: #fbbf24; font-size: 16px; letter-spacing: 0.5px;
+      margin: 40px 0 12px; padding-top: 8px; border-top: 1px solid rgba(251,191,36,0.12);
+    }
+    h2:first-of-type { border-top: none; padding-top: 0; }
+    p { font-size: 15px; color: rgba(254,243,199,0.7); margin: 0 0 14px; }
+    ul { margin: 0 0 14px; padding-left: 20px; }
+    li { font-size: 15px; color: rgba(254,243,199,0.7); margin-bottom: 8px; }
+    strong { color: rgba(254,243,199,0.9); font-weight: 600; }
+    .aviso {
+      background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.18);
+      border-radius: 14px; padding: 16px 18px; margin: 0 0 32px;
+      font-size: 13.5px; font-style: italic; color: rgba(254,243,199,0.6);
+    }
+    .rodape { margin-top: 56px; padding-top: 24px; border-top: 1px solid rgba(251,191,36,0.1); font-size: 12px; color: rgba(254,243,199,0.35); font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="voltar" href="/">← Voltar para o Oráculo</a>
+    <h1>Política de Privacidade</h1>
+    <p class="subtitulo">Legado de Luz · O Oráculo</p>
+
+    <div class="aviso">
+      Última atualização: agosto de 2026. Escrevemos este documento em linguagem simples, mas ele tem valor legal. Se algo não ficar claro, escreva para nós — o contato está no final da página.
+    </div>
+
+    <h2>1. Quem somos e o que este documento cobre</h2>
+    <p>Esta política explica como o aplicativo <strong>O Oráculo</strong> (projeto Legado de Luz), acessível em oraculo-da-luz.vercel.app, coleta, usa, armazena e protege os seus dados pessoais, em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).</p>
+
+    <h2>2. Quais dados coletamos</h2>
+    <p>Coletamos apenas o que é necessário para o funcionamento do serviço:</p>
+    <ul>
+      <li><strong>Dados de conta:</strong> nome, e-mail e, se você entrar com o Google, sua foto de perfil pública. Se criar conta com e-mail e senha, a senha é armazenada de forma criptografada pelo nosso provedor de autenticação (Firebase/Google) — nós mesmos nunca temos acesso a ela em texto simples.</li>
+      <li><strong>Histórico de conversas:</strong> as mensagens que você troca com o Oráculo, junto com a data e hora de cada uma, para que a conversa possa continuar de onde parou e para que você possa consultá-la depois.</li>
+      <li><strong>Dados de pagamento:</strong> nós <strong>não</strong> armazenamos número de cartão, CVV ou qualquer dado sensível de pagamento — isso é processado inteiramente pelo Stripe, nosso processador de pagamentos. Guardamos apenas identificadores internos (como o status da sua assinatura) para saber se o acesso deve estar liberado.</li>
+    </ul>
+
+    <h2>3. Para que usamos esses dados</h2>
+    <ul>
+      <li>Fornecer e manter o funcionamento do serviço (login, conversa, histórico);</li>
+      <li>Gerar as respostas do Oráculo, a partir do conteúdo da sua conversa;</li>
+      <li>Processar pagamentos de assinatura ou pacotes de consultas;</li>
+      <li>Comunicar informações importantes sobre sua conta, quando necessário;</li>
+      <li>Cumprir obrigações legais, quando aplicável.</li>
+    </ul>
+
+    <h2>4. Com quem compartilhamos seus dados</h2>
+    <p>Não vendemos seus dados a ninguém. Compartilhamos apenas com prestadores de serviço que nos ajudam a operar o app, cada um responsável por proteger o que recebe:</p>
+    <ul>
+      <li><strong>Google Firebase</strong> — autenticação de conta e armazenamento do banco de dados (seu perfil e histórico de conversas);</li>
+      <li><strong>Anthropic (Claude)</strong> — recebe o texto da sua conversa para gerar as respostas do Oráculo;</li>
+      <li><strong>Stripe</strong> — processa pagamentos de assinatura e pacotes de consulta;</li>
+      <li><strong>Vercel</strong> — hospeda o site e o aplicativo.</li>
+    </ul>
+    <p>Alguns desses prestadores têm servidores fora do Brasil, o que pode implicar transferência internacional dos seus dados. Todos eles mantêm políticas próprias de segurança e privacidade compatíveis com padrões internacionais de proteção de dados.</p>
+
+    <h2>5. Por quanto tempo guardamos seus dados</h2>
+    <p>Seu histórico de conversas fica salvo enquanto sua conta existir. Você pode apagar conversas específicas a qualquer momento, diretamente na tela de Histórico do app. Se quiser excluir sua conta e todos os dados associados a ela, entre em contato pelo e-mail abaixo — atenderemos ao pedido dentro de um prazo razoável.</p>
+
+    <h2>6. Seus direitos, segundo a LGPD</h2>
+    <p>Você pode, a qualquer momento, solicitar:</p>
+    <ul>
+      <li>Confirmação de que tratamos seus dados, e acesso a eles;</li>
+      <li>Correção de dados incompletos, desatualizados ou incorretos;</li>
+      <li>Anonimização, bloqueio ou eliminação de dados desnecessários ou excessivos;</li>
+      <li>Portabilidade dos seus dados a outro fornecedor de serviço;</li>
+      <li>Eliminação dos dados tratados com seu consentimento;</li>
+      <li>Revogação do seu consentimento, a qualquer momento;</li>
+      <li>Informações sobre com quem compartilhamos seus dados.</li>
+    </ul>
+    <p>Você também tem o direito de apresentar reclamação à Autoridade Nacional de Proteção de Dados (ANPD), caso entenda que seus direitos não foram respeitados.</p>
+
+    <h2>7. Segurança</h2>
+    <p>Adotamos medidas técnicas razoáveis para proteger seus dados contra acesso não autorizado, perda ou alteração indevida. Nenhum sistema, no entanto, é absolutamente livre de falhas — caso identifiquemos algum incidente relevante de segurança, avisaremos você conforme exigido por lei.</p>
+
+    <h2>8. Uso por menores de idade</h2>
+    <p>O Oráculo é destinado a pessoas maiores de 18 anos. Não coletamos intencionalmente dados de crianças ou adolescentes. Se você é responsável por um menor e acredita que ele nos forneceu dados pessoais, entre em contato para que possamos removê-los.</p>
+
+    <h2>9. Armazenamento local no seu navegador</h2>
+    <p>Usamos um pequeno armazenamento local no seu navegador (via Firebase) apenas para manter você conectado entre uma visita e outra, sem precisar fazer login toda vez. Isso não é usado para rastreamento publicitário.</p>
+
+    <h2>10. Alterações nesta política</h2>
+    <p>Podemos atualizar esta política de tempos em tempos, para refletir mudanças no app ou na legislação. A data no topo desta página sempre indicará a versão mais recente.</p>
+
+    <h2>11. Contato</h2>
+    <p>Dúvidas, pedidos de acesso, correção ou exclusão de dados: <a href="mailto:legadodeluz.canal@gmail.com">legadodeluz.canal@gmail.com</a></p>
+
+    <div class="rodape">Legado de Luz · O Oráculo</div>
+  </div>
+</body>
+</html>
