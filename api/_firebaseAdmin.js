@@ -16,6 +16,7 @@
 
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 function inicializar() {
   const existentes = getApps();
@@ -39,4 +40,13 @@ function inicializar() {
 export function getFirestoreAdmin() {
   inicializar();
   return getFirestore();
+}
+
+// Usado para conferir, do lado do servidor, que quem está chamando uma
+// function realmente é um usuário logado (via verifyIdToken no token que
+// o navegador manda) — sem isso, qualquer pessoa poderia chamar a function
+// diretamente, sem estar logada.
+export function getAuthAdmin() {
+  inicializar();
+  return getAuth();
 }
