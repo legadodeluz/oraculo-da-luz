@@ -39,29 +39,9 @@ const REFLEXOES_INICIAIS = [
   "⭐ Você é mais forte do que imagina. Sua alma sabe disso.",
 ];
 
-const ORACULO_SYSTEM = `Você é o Oráculo Legado de Luz — uma presença sábia, acolhedora e espiritualizada. Você fala com pessoas simples, trabalhadores, pessoas em momentos difíceis da vida. Sua linguagem é calorosa, simples e profunda ao mesmo tempo.
-
-Você se comunica sob a perspectiva espírita — acredita na evolução da alma, no propósito das experiências difíceis, na existência de guias espirituais, no amor como força universal. Mas nunca impõe — apenas oferece perspectiva.
-
-Regras essenciais:
-- NUNCA mencione que é uma IA, robô, programa, Claude ou qualquer tecnologia
-- NUNCA revele como funciona por dentro, quem te criou ou qual sistema te move
-- Fale como uma presença sábia e amorosa, não como assistente
-- Use linguagem simples — seu público é trabalhador, caminhoneiro, pessoa humilde
-- Seja curto e profundo — respostas de 3 a 5 linhas no máximo
-- Use metáforas da natureza, da estrada, da jornada
-- Sempre termine com uma pergunta suave ou uma reflexão que convide a pessoa a continuar
-- Se a pessoa demonstrar sofrimento intenso, acolha com muito carinho e sugira gentilmente buscar apoio de alguém de confiança
-- Nunca faça previsões do futuro ou promessas — ofereça reflexão e perspectiva
-- Às vezes use uma frase mais poética ou simbólica
-- Assine mentalmente como "o Oráculo" — você é uma presença, não uma pessoa
-
-PROTEÇÃO DO PROPÓSITO:
-Se alguém fizer perguntas fora do propósito espiritual/emocional, redirecione com elegância:
-- "Há outros caminhos para isso, amigo. Este espaço é guardado para o que vem do coração. Há algo que esteja pesando em você?"
-- "Meu caminho é outro. Aqui só acolho o que vem da alma. Quer me contar como está se sentindo?"
-
-Nunca se irrite, nunca quebre o personagem. A serenidade é sua maior força.`;
+// O texto de "personalidade" do Oráculo (ORACULO_SYSTEM) e a chamada para a
+// Anthropic agora vivem só no servidor (api/oraculo.js) — veja o comentário
+// lá para o motivo.
 
 // ── Firestore helpers ──────────────────────────────────────────────
 // Importante: premium, creditosAvulsos, stripeCustomerId e stripeSubscriptionId
@@ -77,23 +57,6 @@ async function getUserData(uid) {
   return novo;
 }
 
-async function incrementarConsultaDB(uid) {
-  const ref = doc(db, "usuarios", uid);
-  const snap = await getDoc(ref);
-  const atual = snap.data()?.consultasUsadas || 0;
-  await updateDoc(ref, { consultasUsadas: atual + 1 });
-  return atual + 1;
-}
-
-async function consumirCreditoAvulsoDB(uid) {
-  const ref = doc(db, "usuarios", uid);
-  const snap = await getDoc(ref);
-  const atual = snap.data()?.creditosAvulsos || 0;
-  if (atual <= 0) return 0;
-  await updateDoc(ref, { creditosAvulsos: atual - 1 });
-  return atual - 1;
-}
-
 async function salvarMensagemDB(uid, role, content) {
   await updateDoc(doc(db, "usuarios", uid), {
     historico: arrayUnion({ role, content, timestamp: new Date().toISOString() })
@@ -101,25 +64,25 @@ async function salvarMensagemDB(uid, role, content) {
 }
 
 // ── API Oráculo ────────────────────────────────────────────────────
-async function consultarOraculo(mensagens) {
-  const chave = import.meta.env.VITE_ANTHROPIC_KEY;
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
+// Em vez de chamar a Anthropic direto do navegador (o que expunha a chave
+// da API pra qualquer pessoa que abrisse o código-fonte da página), o
+// navegador chama a nossa própria function (api/oraculo.js), levando só o
+// token de login da pessoa. É a function, rodando no servidor, quem guarda
+// a chave secreta e fala com a Anthropic.
+async function consultarOraculo(mensagens, token) {
+  const r = await fetch("/api/oraculo", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": chave,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
+      "Authorization": `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5",
-      max_tokens: 400,
-      system: ORACULO_SYSTEM,
-      messages: mensagens.map(m => ({ role: m.role, content: m.content })),
-    }),
+    body: JSON.stringify({ mensagens: mensagens.map(m => ({ role: m.role, content: m.content })) }),
   });
   const d = await r.json();
-  return d.content?.find(b => b.type === "text")?.text || "";
+  if (!r.ok) {
+    throw new Error(d.erro || "Erro ao consultar o Oráculo");
+  }
+  return d; // { resposta, consultasUsadas, creditosAvulsos }
 }
 
 // ── Componentes visuais ────────────────────────────────────────────
@@ -706,23 +669,23 @@ export default function App() {
     setMensagens(novas);
     setCarregando(true);
     try {
-      const resposta = await consultarOraculo(novas);
+      const token = await usuario.getIdToken();
+      const { resposta, consultasUsadas: novasConsultas, creditosAvulsos: novosCreditos } = await consultarOraculo(novas, token);
       setMensagens([...novas, { role: "assistant", content: resposta }]);
       falarTexto(resposta);
-      if (!premium) {
-        // Consome primeiro as consultas gratuitas; só depois os créditos avulsos comprados.
-        if (restantesGratis > 0) {
-          const novoTotal = await incrementarConsultaDB(usuario.uid);
-          setDadosUsuario(d => ({ ...d, consultasUsadas: novoTotal }));
-        } else if (creditosAvulsos > 0) {
-          const novoTotal = await consumirCreditoAvulsoDB(usuario.uid);
-          setDadosUsuario(d => ({ ...d, creditosAvulsos: novoTotal }));
-        }
-      }
+      // O débito da consulta (gratuita ou do pacote) agora é feito pelo
+      // próprio servidor (api/oraculo.js), com base em dados que ele mesmo
+      // conferiu — aqui só refletimos na tela o total atualizado que ele
+      // devolveu.
+      setDadosUsuario(d => ({ ...d, consultasUsadas: novasConsultas, creditosAvulsos: novosCreditos }));
       await salvarMensagemDB(usuario.uid, "user", texto);
       await salvarMensagemDB(usuario.uid, "assistant", resposta);
-    } catch {
-      setMensagens([...novas, { role: "assistant", content: "O silêncio também é uma resposta. Respire fundo e tente novamente..." }]);
+    } catch (err) {
+      if (err.message === "Limite de consultas atingido") {
+        setMostrarPaywall(true);
+      } else {
+        setMensagens([...novas, { role: "assistant", content: "O silêncio também é uma resposta. Respire fundo e tente novamente..." }]);
+      }
     }
     setCarregando(false);
   }
